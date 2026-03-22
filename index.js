@@ -14,9 +14,10 @@ initSocket(server);
 
 // Middleware
 app.use(cors({
-    origin: '*', // Allow all origins to simplify mobile testing (dynamic IP)
+    origin: ["https://pokedex-production-494a.up.railway.app", "http://localhost:5173"],
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
 }));
 app.use(express.json());
 // app.use(passport.initialize()); // Disabled Google Auth initialization

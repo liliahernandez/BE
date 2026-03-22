@@ -8,8 +8,9 @@ const connectedUsers = new Map();
 const initSocket = (server) => {
     io = socketIo(server, {
         cors: {
-            origin: '*', // Adjust this for production
-            methods: ['GET', 'POST']
+            origin: "https://pokedex-production-494a.up.railway.app",
+            methods: ["GET", "POST"],
+            credentials: true
         }
     });
 
