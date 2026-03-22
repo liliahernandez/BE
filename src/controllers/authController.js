@@ -150,16 +150,11 @@ exports.addFriend = async (req, res) => {
                 // Clean up the pending request
                 await existingInverseRequest.destroy();
 
-                // Notify both users
-                const payload = {
-                    message: `¡Ahora eres amigo de ${friend.name}!`,
-                    friendId: user.id,
-                    friendName: user.name,
-                    otherId: friend.id,
-                    otherName: friend.name
-                };
-                notifyUser(friend.id, 'friendship_updated', payload);
-                notifyUser(user.id, 'friendship_updated', payload);
+                // Notify both users after a short delay to ensure DB sync
+                setTimeout(() => {
+                    notifyUser(friend.id, 'friendship_updated', payload);
+                    notifyUser(user.id, 'friendship_updated', payload);
+                }, 500);
 
                 return res.json({ message: '¡Amistad establecida automáticamente!', isMutual: true });
             }
@@ -216,16 +211,18 @@ exports.addFriend = async (req, res) => {
                 otherName: friend.name
             };
 
-            // Notify BOTH users to refresh their lists
+            // Notify BOTH users to refresh their lists after a short delay to ensure DB sync
             console.log(`[Auth] Notifying users: ${user.id} and ${friend.id} of friendship success...`);
             
-            // Current event
-            notifyUser(friend.id, 'friendship_updated', payload);
-            notifyUser(user.id, 'friendship_updated', payload);
+            setTimeout(() => {
+                // Current event
+                notifyUser(friend.id, 'friendship_updated', payload);
+                notifyUser(user.id, 'friendship_updated', payload);
 
-            // Legacy event fallback (for old clients)
-            notifyUser(friend.id, 'friend_request_accepted', payload);
-            notifyUser(user.id, 'friend_request_accepted', payload);
+                // Legacy event fallback (for old clients)
+                notifyUser(friend.id, 'friend_request_accepted', payload);
+                notifyUser(user.id, 'friend_request_accepted', payload);
+            }, 500);
 
             return res.json({
                 message: 'Amigo añadido exitosamente',
