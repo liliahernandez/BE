@@ -5,7 +5,7 @@ const { notifyUser } = require('../sockets/socket');
 // Register new user
 exports.register = async (req, res) => {
     try {
-        const { email, password, name } = req.body;
+        const { email, password, name, nickname } = req.body;
 
         if (!email || !password || !name) {
             return res.status(400).json({ error: 'Correo, contraseña y nombre requeridos' });
@@ -22,6 +22,7 @@ exports.register = async (req, res) => {
             email,
             password,
             name,
+            nickname,
             friendCode
         });
 
