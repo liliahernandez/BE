@@ -8,10 +8,18 @@ const connectedUsers = new Map();
 const initSocket = (server) => {
     io = socketIo(server, {
         cors: {
-            origin: "https://pokedex-production-494a.up.railway.app",
+            origin: (origin, callback) => {
+                // Allow our specific production URL or any from the same domain
+                if (!origin || origin.includes('railway.app') || origin.includes('localhost')) {
+                    callback(null, true);
+                } else {
+                    callback(new Error('Not allowed by CORS'));
+                }
+            },
             methods: ["GET", "POST"],
             credentials: true
-        }
+        },
+        transports: ['websocket', 'polling'] // Explicitly enable both
     });
 
     // Middleware for authentication

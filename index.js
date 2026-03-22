@@ -14,7 +14,14 @@ initSocket(server);
 
 // Middleware
 app.use(cors({
-    origin: ["https://pokedex-production-494a.up.railway.app", "http://localhost:5173"],
+    origin: (origin, callback) => {
+        // Allow Railway origins and localhost
+        if (!origin || origin.includes('railway.app') || origin.includes('localhost')) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
