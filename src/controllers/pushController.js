@@ -1,12 +1,19 @@
 const webpush = require('web-push');
 const { PushSubscription } = require('../models');
 
-// Configure VAPID
-webpush.setVapidDetails(
-    'mailto:admin@pokedex.app',
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
-);
+// Lazy VAPID initialization
+let vapidConfigured = false;
+function ensureVapid() {
+    if (vapidConfigured) return;
+    const pub = process.env.VAPID_PUBLIC_KEY;
+    const priv = process.env.VAPID_PRIVATE_KEY;
+    if (!pub || !priv) {
+        throw new Error('VAPID keys not set in environment variables!');
+    }
+    webpush.setVapidDetails('mailto:admin@pokedex.app', pub, priv);
+    vapidConfigured = true;
+    console.log('[Push] VAPID configured successfully');
+}
 
 // Save a push subscription for a user
 exports.saveSubscription = async (req, res) => {
@@ -40,6 +47,7 @@ exports.saveSubscription = async (req, res) => {
 // Send a push notification to a specific user
 exports.sendPushToUser = async (userId, payload) => {
     try {
+        ensureVapid();
         const subscriptions = await PushSubscription.findAll({ where: { userId } });
 
         if (subscriptions.length === 0) {
