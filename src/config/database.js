@@ -2,12 +2,12 @@ const { Sequelize } = require('sequelize');
 
 const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/pokemon_app', {
     dialect: 'postgres',
-    logging: false, // Set to console.log to see SQL queries
+    logging: false,
     dialectOptions: {
-        // ssl: {
-        //     require: true, 
-        //     rejectUnauthorized: false 
-        // }
+        ssl: process.env.DATABASE_URL ? {
+            require: true,
+            rejectUnauthorized: false
+        } : false
     }
 });
 
