@@ -15,22 +15,6 @@ router.post('/friends', auth, authController.addFriend);
 router.get('/friends', auth, authController.getFriends);
 router.delete('/friends/:friendId', auth, authController.removeFriend);
 
-// Google Auth
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-
-router.get('/google/callback',
-    passport.authenticate('google', { session: false, failureRedirect: '/login' }),
-    (req, res) => {
-        // Generate JWT
-        const token = jwt.sign(
-            { userId: req.user.id },
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' }
-        );
-
-        // Redirect to frontend with token
-        res.redirect(`http://localhost:5173/login?token=${token}`);
-    }
-);
+// Google Auth routes removed as per user request
 
 module.exports = router;

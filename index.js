@@ -19,8 +19,7 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
-const passport = require('./src/config/passport');
-app.use(passport.initialize());
+// app.use(passport.initialize()); // Disabled Google Auth initialization
 
 // Routes
 app.use('/auth', require('./src/routes/auth'));
