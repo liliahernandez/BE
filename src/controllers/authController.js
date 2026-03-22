@@ -172,6 +172,7 @@ exports.addFriend = async (req, res) => {
             };
 
             // Notify BOTH users to refresh their lists
+            console.log(`[Auth] Notifying users: ${user.id} and ${friend.id} of friendship update...`);
             notifyUser(friend.id, 'friendship_updated', payload);
             notifyUser(user.id, 'friendship_updated', payload);
 
