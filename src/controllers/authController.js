@@ -1,3 +1,4 @@
+const jwt = require('jsonwebtoken');
 const { User, FriendRequest, Friendship } = require('../models');
 const { notifyUser } = require('../sockets/socket');
 const { Op } = require('sequelize');
