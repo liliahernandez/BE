@@ -1,6 +1,6 @@
-const jwt = require('jsonwebtoken');
-const { User, FriendRequest } = require('../models');
+const { User, FriendRequest, Friendship } = require('../models');
 const { notifyUser } = require('../sockets/socket');
+const { Op } = require('sequelize');
 
 // Register new user
 exports.register = async (req, res) => {
@@ -167,14 +167,13 @@ exports.addFriend = async (req, res) => {
                 return res.status(400).json({ error: 'Ya son amigos' });
             }
 
-            const { Friendship } = require('../models');
             await Friendship.findOrCreate({ where: { userId: user.id, friendId: friend.id } });
             await Friendship.findOrCreate({ where: { userId: friend.id, friendId: user.id } });
             
             // Clear pending request from DB
             await FriendRequest.destroy({
                 where: {
-                    [require('sequelize').Op.or]: [
+                    [Op.or]: [
                         { senderId: user.id, receiverId: friend.id },
                         { senderId: friend.id, receiverId: user.id }
                     ]
@@ -230,11 +229,15 @@ exports.getFriends = async (req, res) => {
             }]
         });
 
-        console.log(`[Auth] User ${req.userId} (Email: ${user.email}) has ${user.friends?.length || 0} friends in DB.`);
-        if (user.friends?.length > 0) {
-            user.friends.forEach(f => console.log(` - Amigo: ${f.name} (ID: ${f.id})`));
+        try {
+            console.log(`[Auth] User ${req.userId} (Email: ${user?.email}) has ${user?.friends?.length || 0} friends in DB.`);
+            if (user?.friends?.length > 0) {
+                user.friends.forEach(f => console.log(` - Amigo: ${f.name} (ID: ${f.id})`));
+            }
+        } catch (logLimit) {
+            console.log('[Auth] Error printing logs in getFriends');
         }
-        res.json({ friends: user.friends });
+        res.json({ friends: user?.friends || [] });
     } catch (error) {
         console.error('Get friends error:', error);
         res.status(500).json({ error: 'Error obteniendo amigos' });

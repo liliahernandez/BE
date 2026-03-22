@@ -41,5 +41,6 @@ module.exports = {
     Team,
     TeamPokemon,
     Battle,
-    FriendRequest
+    FriendRequest,
+    Friendship
 };
