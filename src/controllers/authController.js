@@ -137,7 +137,34 @@ exports.addFriend = async (req, res) => {
                 return res.status(400).json({ error: 'Ya son amigos' });
             }
             
-            // Send socket notification
+            // Check if there is already a reciprocal request from the other user
+            const existingInverseRequest = await FriendRequest.findOne({
+                where: { senderId: friend.id, receiverId: user.id }
+            });
+
+            if (existingInverseRequest) {
+                // If the other person already added us, make them friends IMMEDIATELY
+                await Friendship.findOrCreate({ where: { userId: user.id, friendId: friend.id } });
+                await Friendship.findOrCreate({ where: { userId: friend.id, friendId: user.id } });
+
+                // Clean up the pending request
+                await existingInverseRequest.destroy();
+
+                // Notify both users
+                const payload = {
+                    message: `¡Ahora eres amigo de ${friend.name}!`,
+                    friendId: user.id,
+                    friendName: user.name,
+                    otherId: friend.id,
+                    otherName: friend.name
+                };
+                notifyUser(friend.id, 'friendship_updated', payload);
+                notifyUser(user.id, 'friendship_updated', payload);
+
+                return res.json({ message: '¡Amistad establecida automáticamente!', isMutual: true });
+            }
+
+            // Normal flow: Send socket notification
             notifyUser(friend.id, 'friend_request', {
                 requesterId: user.id,
                 requesterEmail: user.email,
