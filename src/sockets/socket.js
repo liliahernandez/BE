@@ -32,7 +32,7 @@ const initSocket = (server) => {
     });
 
     io.on('connection', (socket) => {
-        const userId = socket.userId;
+        const userId = String(socket.userId);
         
         // Add to connected users
         if (!connectedUsers.has(userId)) {
@@ -43,6 +43,7 @@ const initSocket = (server) => {
         console.log(`User connected: ${userId} with socket ID: ${socket.id}`);
 
         socket.on('disconnect', () => {
+            const userId = String(socket.userId);
             console.log(`User disconnected: ${userId} with socket ID: ${socket.id}`);
             const userSockets = connectedUsers.get(userId);
             if (userSockets) {
