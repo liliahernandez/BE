@@ -163,12 +163,17 @@ exports.addFriend = async (req, res) => {
             await user.addFriend(friend);
             await friend.addFriend(user); // Bi-directional
             
-            notifyUser(friend.id, 'friend_request_accepted', {
-                acceptorId: user.id,
-                acceptorEmail: user.email,
-                acceptorName: user.name,
-                acceptorFriendCode: user.friendCode
-            });
+            const payload = {
+                message: '¡Ahora son amigos!',
+                friendId: user.id,
+                friendName: user.name,
+                otherId: friend.id,
+                otherName: friend.name
+            };
+
+            // Notify BOTH users to refresh their lists
+            notifyUser(friend.id, 'friendship_updated', payload);
+            notifyUser(user.id, 'friendship_updated', payload);
 
             return res.json({
                 message: 'Amigo añadido exitosamente',
