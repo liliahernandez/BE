@@ -117,6 +117,7 @@ exports.getProfile = async (req, res) => {
 exports.addFriend = async (req, res) => {
     try {
         const { friendCode, action, friendId } = req.body;
+        console.log(`[Auth] Friend Action: ${action} | fromUser: ${req.userId} | friendId: ${friendId} | friendCode: ${friendCode}`);
         const user = await User.findByPk(req.userId);
 
         if (action === 'send_request') {
