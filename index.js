@@ -31,6 +31,7 @@ app.use(express.json());
 
 // Routes
 app.use('/auth', require('./src/routes/auth'));
+app.use('/api/auth', require('./src/routes/auth')); // Fallback for old SW or hardcoded URLs
 app.use('/favorites', require('./src/routes/favorites'));
 app.use('/pokemon', require('./src/routes/pokemon'));
 app.use('/battles', require('./src/routes/battles'));
