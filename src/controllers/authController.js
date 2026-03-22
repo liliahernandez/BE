@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+const { User, FriendRequest } = require('../models');
 const { notifyUser } = require('../sockets/socket');
 
 // Register new user
@@ -164,6 +164,16 @@ exports.addFriend = async (req, res) => {
             await user.addFriend(friend);
             await friend.addFriend(user); // Bi-directional
             
+            // Clear pending request from DB
+            await FriendRequest.destroy({
+                where: {
+                    [require('sequelize').Op.or]: [
+                        { senderId: user.id, receiverId: friend.id },
+                        { senderId: friend.id, receiverId: user.id }
+                    ]
+                }
+            });
+            
             const payload = {
                 message: '¡Ahora son amigos!',
                 friendId: user.id,
@@ -244,5 +254,26 @@ exports.removeFriend = async (req, res) => {
     } catch (error) {
         console.error('Remove friend error:', error);
         res.status(500).json({ error: 'Error eliminando amigo' });
+    }
+};
+
+// Get pending friend requests (sent TO this user)
+exports.getPendingRequests = async (req, res) => {
+    try {
+        const requests = await FriendRequest.findAll({
+            where: { receiverId: req.userId, status: 'pending' }
+        });
+
+        // Get details of senders
+        const senderIds = requests.map(r => r.senderId);
+        const senders = await User.findAll({
+            where: { id: senderIds },
+            attributes: ['id', 'email', 'name', 'friendCode']
+        });
+
+        res.json({ pending: senders });
+    } catch (error) {
+        console.error('Error fetching pending requests:', error);
+        res.status(500).json({ error: 'Error fetching pending requests' });
     }
 };

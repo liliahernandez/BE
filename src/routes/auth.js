@@ -13,6 +13,7 @@ router.post('/login', authController.login);
 router.get('/profile', auth, authController.getProfile);
 router.post('/friends', auth, authController.addFriend);
 router.get('/friends', auth, authController.getFriends);
+router.get('/friends/pending', auth, authController.getPendingRequests);
 router.delete('/friends/:friendId', auth, authController.removeFriend);
 
 // Google Auth routes removed as per user request
