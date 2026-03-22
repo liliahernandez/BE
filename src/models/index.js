@@ -4,6 +4,7 @@ const Team = require('./Team');
 const TeamPokemon = require('./TeamPokemon');
 const Battle = require('./Battle');
 const FriendRequest = require('./FriendRequest');
+const PushSubscription = require('./PushSubscription');
 
 // User <-> Favorite
 User.hasMany(Favorite, { foreignKey: 'userId', as: 'favorites' });
@@ -42,5 +43,6 @@ module.exports = {
     TeamPokemon,
     Battle,
     FriendRequest,
-    Friendship
+    Friendship,
+    PushSubscription
 };

@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const { User, FriendRequest, Friendship } = require('../models');
 const { notifyUser } = require('../sockets/socket');
+const { sendPushToUser } = require('./pushController');
 const { Op } = require('sequelize');
 
 // Register new user
@@ -165,6 +166,16 @@ exports.addFriend = async (req, res) => {
                 requesterEmail: user.email,
                 requesterName: user.name,
                 requesterFriendCode: user.friendCode
+            });
+
+            // Also send Web Push notification (works even if app is closed)
+            sendPushToUser(friend.id, {
+                title: 'Solicitud de Amistad 🤝',
+                body: `${user.name || user.email} quiere ser tu amigo en Pokédex.`,
+                data: {
+                    action: 'accept-friend',
+                    requesterId: user.id
+                }
             });
 
             // Store in DB for persistence

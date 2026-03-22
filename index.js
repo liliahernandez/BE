@@ -35,6 +35,7 @@ app.use('/api/auth', require('./src/routes/auth')); // Fallback for old SW or ha
 app.use('/favorites', require('./src/routes/favorites'));
 app.use('/pokemon', require('./src/routes/pokemon'));
 app.use('/battles', require('./src/routes/battles'));
+app.use('/push', require('./src/routes/push'));
 
 // Database sync and server start
 sequelize.sync({ alter: true }) // Changed to alter to update User table with new columns
