@@ -172,9 +172,15 @@ exports.addFriend = async (req, res) => {
             };
 
             // Notify BOTH users to refresh their lists
-            console.log(`[Auth] Notifying users: ${user.id} and ${friend.id} of friendship update...`);
+            console.log(`[Auth] Notifying users: ${user.id} and ${friend.id} of friendship success...`);
+            
+            // Current event
             notifyUser(friend.id, 'friendship_updated', payload);
             notifyUser(user.id, 'friendship_updated', payload);
+
+            // Legacy event fallback (for old clients)
+            notifyUser(friend.id, 'friend_request_accepted', payload);
+            notifyUser(user.id, 'friend_request_accepted', payload);
 
             return res.json({
                 message: 'Amigo añadido exitosamente',
@@ -206,6 +212,7 @@ exports.getFriends = async (req, res) => {
             }]
         });
 
+        console.log(`[Auth] User ${req.userId} has ${user.friends?.length || 0} friends in DB.`);
         res.json({ friends: user.friends });
     } catch (error) {
         console.error('Get friends error:', error);

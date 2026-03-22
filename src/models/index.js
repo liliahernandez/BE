@@ -16,10 +16,12 @@ Team.belongsTo(User, { foreignKey: 'userId' });
 Team.hasMany(TeamPokemon, { foreignKey: 'teamId', as: 'pokemon' });
 TeamPokemon.belongsTo(Team, { foreignKey: 'teamId' });
 
+const Friendship = require('./Friendship');
+
 // User <-> User (Friends)
 User.belongsToMany(User, {
     as: 'friends',
-    through: 'Friendships',
+    through: Friendship, // Explicit model
     foreignKey: 'userId',
     otherKey: 'friendId'
 });
