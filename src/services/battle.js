@@ -1,4 +1,4 @@
-const Battle = require('../models/Battle');
+const { Battle, User } = require('../models');
 
 // Type effectiveness chart
 const typeChart = {
@@ -40,8 +40,8 @@ class BattleService {
     calculateDamage(attacker, defender, move, moveType) {
         const attack = attacker.stats.attack || attacker.stats['special-attack'];
         const defense = defender.stats.defense || defender.stats['special-defense'];
-        const level = 50; // Default level
-        const power = 60; // Default move power
+        const level = 50; 
+        const power = 60; 
 
         // STAB (Same Type Attack Bonus)
         const stab = attacker.types.includes(moveType) ? 1.5 : 1;
@@ -49,7 +49,7 @@ class BattleService {
         // Type effectiveness
         const effectiveness = this.calculateEffectiveness(moveType, defender.types);
 
-        // Damage formula (simplified Pokemon damage calculation)
+        // Damage formula 
         const baseDamage = ((((2 * level / 5) + 2) * power * (attack / defense)) / 50) + 2;
         const damage = Math.floor(baseDamage * stab * effectiveness * (Math.random() * 0.15 + 0.85));
 
@@ -58,10 +58,9 @@ class BattleService {
 
     // Simulate a turn
     simulateTurn(attacker, defender, attackerName, defenderName, turnNumber) {
-        // Select random move (simplified - in real Pokemon, player chooses)
         const moveIndex = Math.floor(Math.random() * Math.min(attacker.moves.length, 4));
         const moveName = attacker.moves[moveIndex] || 'tackle';
-        const moveType = attacker.types[0]; // Simplified - use first type
+        const moveType = attacker.types[0]; 
 
         const { damage, effectiveness } = this.calculateDamage(attacker, defender, moveName, moveType);
 
@@ -85,9 +84,12 @@ class BattleService {
 
     // Simulate full battle
     async simulateBattle(battleId) {
-        const battle = await Battle.findById(battleId)
-            .populate('challenger', 'email friendCode')
-            .populate('opponent', 'email friendCode');
+        const battle = await Battle.findByPk(battleId, {
+            include: [
+                { model: User, as: 'challenger', attributes: ['email', 'name'] },
+                { model: User, as: 'opponent', attributes: ['email', 'name'] }
+            ]
+        });
 
         if (!battle) {
             throw new Error('Battle not found');
@@ -113,118 +115,84 @@ class BattleService {
         let challengerIndex = 0;
         let opponentIndex = 0;
 
-        // Battle loop - continues until one team is defeated
+        // Battle loop
         while (challengerIndex < battle.challengerTeam.length &&
             opponentIndex < battle.opponentTeam.length) {
 
             const challengerPokemon = battle.challengerTeam[challengerIndex];
             const opponentPokemon = battle.opponentTeam[opponentIndex];
 
-            // Determine who goes first based on speed
             const challengerSpeed = challengerPokemon.stats.speed;
             const opponentSpeed = opponentPokemon.stats.speed;
 
+            const chName = battle.challenger.name || battle.challenger.email;
+            const opName = battle.opponent.name || battle.opponent.email;
+
             if (challengerSpeed >= opponentSpeed) {
-                // Challenger attacks first
-                const log1 = this.simulateTurn(
-                    challengerPokemon,
-                    opponentPokemon,
-                    battle.challenger.email,
-                    battle.opponent.email,
-                    turn
-                );
+                const log1 = this.simulateTurn(challengerPokemon, opponentPokemon, chName, opName, turn);
                 battle.battleLog.push(log1);
 
                 if (opponentPokemon.currentHp <= 0) {
-                    battle.battleLog.push({
-                        turn,
-                        message: `${battle.opponent.email}'s ${opponentPokemon.name} fainted!`
-                    });
+                    battle.battleLog.push({ turn, message: `${opName}'s ${opponentPokemon.name} fainted!` });
                     opponentIndex++;
-                    turn++;
-                    continue;
-                }
+                } else {
+                    const log2 = this.simulateTurn(opponentPokemon, challengerPokemon, opName, chName, turn);
+                    battle.battleLog.push(log2);
 
-                // Opponent attacks back
-                const log2 = this.simulateTurn(
-                    opponentPokemon,
-                    challengerPokemon,
-                    battle.opponent.email,
-                    battle.challenger.email,
-                    turn
-                );
-                battle.battleLog.push(log2);
-
-                if (challengerPokemon.currentHp <= 0) {
-                    battle.battleLog.push({
-                        turn,
-                        message: `${battle.challenger.email}'s ${challengerPokemon.name} fainted!`
-                    });
-                    challengerIndex++;
+                    if (challengerPokemon.currentHp <= 0) {
+                        battle.battleLog.push({ turn, message: `${chName}'s ${challengerPokemon.name} fainted!` });
+                        challengerIndex++;
+                    }
                 }
             } else {
-                // Opponent attacks first
-                const log1 = this.simulateTurn(
-                    opponentPokemon,
-                    challengerPokemon,
-                    battle.opponent.email,
-                    battle.challenger.email,
-                    turn
-                );
+                const log1 = this.simulateTurn(opponentPokemon, challengerPokemon, opName, chName, turn);
                 battle.battleLog.push(log1);
 
                 if (challengerPokemon.currentHp <= 0) {
-                    battle.battleLog.push({
-                        turn,
-                        message: `${battle.challenger.email}'s ${challengerPokemon.name} fainted!`
-                    });
+                    battle.battleLog.push({ turn, message: `${chName}'s ${challengerPokemon.name} fainted!` });
                     challengerIndex++;
-                    turn++;
-                    continue;
-                }
+                } else {
+                    const log2 = this.simulateTurn(challengerPokemon, opponentPokemon, chName, opName, turn);
+                    battle.battleLog.push(log2);
 
-                // Challenger attacks back
-                const log2 = this.simulateTurn(
-                    challengerPokemon,
-                    opponentPokemon,
-                    battle.challenger.email,
-                    battle.opponent.email,
-                    turn
-                );
-                battle.battleLog.push(log2);
-
-                if (opponentPokemon.currentHp <= 0) {
-                    battle.battleLog.push({
-                        turn,
-                        message: `${battle.opponent.email}'s ${opponentPokemon.name} fainted!`
-                    });
-                    opponentIndex++;
+                    if (opponentPokemon.currentHp <= 0) {
+                        battle.battleLog.push({ turn, message: `${opName}'s ${opponentPokemon.name} fainted!` });
+                        opponentIndex++;
+                    }
                 }
             }
-
             turn++;
         }
 
         // Determine winner
         if (challengerIndex >= battle.challengerTeam.length) {
-            battle.winner = battle.opponent._id;
-            battle.battleLog.push({
-                turn,
-                message: `${battle.opponent.email} wins the battle!`
-            });
+            battle.winnerId = battle.opponentId;
+            battle.battleLog.push({ turn, message: `${opName} wins the battle!` });
         } else {
-            battle.winner = battle.challenger._id;
-            battle.battleLog.push({
-                turn,
-                message: `${battle.challenger.email} wins the battle!`
-            });
+            battle.winnerId = battle.challengerId;
+            battle.battleLog.push({ turn, message: `${chName} wins the battle!` });
         }
 
         battle.status = 'completed';
         battle.completedAt = new Date();
 
-        await battle.save();
-        return battle;
+        // Use changed() to help Sequelize with JSONB if needed, though direct save usually works
+        await Battle.update({
+            status: battle.status,
+            battleLog: battle.battleLog,
+            challengerTeam: battle.challengerTeam,
+            opponentTeam: battle.opponentTeam,
+            winnerId: battle.winnerId,
+            completedAt: battle.completedAt
+        }, { where: { id: battle.id } });
+
+        return await Battle.findByPk(battle.id, {
+            include: [
+                { model: User, as: 'challenger', attributes: ['email', 'name'] },
+                { model: User, as: 'opponent', attributes: ['email', 'name'] },
+                { model: User, as: 'winner', attributes: ['email', 'name'] }
+            ]
+        });
     }
 }
 

@@ -1,59 +1,34 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
 
-const battleSchema = new mongoose.Schema({
-    challenger: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
+const Battle = sequelize.define('Battle', {
+    id: {
+        type: DataTypes.INTEGER,
+        autoIncrement: true,
+        primaryKey: true
     },
-    opponent: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
-    },
-    challengerTeam: [{
-        pokemonId: Number,
-        name: String,
-        sprite: String,
-        types: [String],
-        stats: Object,
-        moves: [String],
-        currentHp: Number
-    }],
-    opponentTeam: [{
-        pokemonId: Number,
-        name: String,
-        sprite: String,
-        types: [String],
-        stats: Object,
-        moves: [String],
-        currentHp: Number
-    }],
     status: {
-        type: String,
-        enum: ['pending', 'active', 'completed', 'cancelled'],
-        default: 'pending'
+        type: DataTypes.ENUM('pending', 'active', 'completed', 'cancelled'),
+        defaultValue: 'pending'
     },
-    winner: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+    challengerTeam: {
+        type: DataTypes.JSONB,
+        allowNull: false
     },
-    battleLog: [{
-        turn: Number,
-        attacker: String,
-        defender: String,
-        move: String,
-        damage: Number,
-        effectiveness: Number,
-        message: String
-    }],
-    createdAt: {
-        type: Date,
-        default: Date.now
+    opponentTeam: {
+        type: DataTypes.JSONB,
+        allowNull: false
     },
-    completedAt: Date
+    battleLog: {
+        type: DataTypes.JSONB,
+        defaultValue: []
+    },
+    completedAt: {
+        type: DataTypes.DATE,
+        allowNull: true
+    }
 }, {
     timestamps: true
 });
 
-module.exports = mongoose.model('Battle', battleSchema);
+module.exports = Battle;
