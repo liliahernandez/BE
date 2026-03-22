@@ -143,6 +143,12 @@ exports.addFriend = async (req, res) => {
                 requesterName: user.name,
                 requesterFriendCode: user.friendCode
             });
+
+            // Store in DB for persistence
+            await FriendRequest.findOrCreate({
+                where: { senderId: user.id, receiverId: friend.id },
+                defaults: { status: 'pending' }
+            });
             
             return res.json({ message: 'Solicitud de amistad enviada' });
         } 
@@ -161,8 +167,9 @@ exports.addFriend = async (req, res) => {
                 return res.status(400).json({ error: 'Ya son amigos' });
             }
 
-            await user.addFriend(friend);
-            await friend.addFriend(user); // Bi-directional
+            const { Friendship } = require('../models');
+            await Friendship.findOrCreate({ where: { userId: user.id, friendId: friend.id } });
+            await Friendship.findOrCreate({ where: { userId: friend.id, friendId: user.id } });
             
             // Clear pending request from DB
             await FriendRequest.destroy({
@@ -223,7 +230,10 @@ exports.getFriends = async (req, res) => {
             }]
         });
 
-        console.log(`[Auth] User ${req.userId} has ${user.friends?.length || 0} friends in DB.`);
+        console.log(`[Auth] User ${req.userId} (Email: ${user.email}) has ${user.friends?.length || 0} friends in DB.`);
+        if (user.friends?.length > 0) {
+            user.friends.forEach(f => console.log(` - Amigo: ${f.name} (ID: ${f.id})`));
+        }
         res.json({ friends: user.friends });
     } catch (error) {
         console.error('Get friends error:', error);
