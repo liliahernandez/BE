@@ -1,6 +1,7 @@
 const { Battle, User, Team, TeamPokemon } = require('../models');
 const battleService = require('../services/battle');
 const { notifyUser } = require('../sockets/socket');
+const { sendPushToUser } = require('./pushController');
 const { Op } = require('sequelize');
 
 // Create battle challenge
@@ -59,13 +60,24 @@ exports.createBattle = async (req, res) => {
             status: 'pending'
         });
 
-        // Notify the opponent in real-time
+        // Notify the opponent in real-time via socket
         notifyUser(opponentId, 'battle_request', {
             battleId: battle.id,
             challengerId: challenger.id,
             challengerEmail: challenger.email,
             challengerName: challenger.name,
             challengerFriendCode: challenger.friendCode
+        });
+
+        // Also send Web Push notification (works even if app is closed)
+        sendPushToUser(opponentId, {
+            title: '¡Reto de Batalla! ⚔️',
+            body: `${challenger.name || challenger.email} te ha retado a una batalla Pokémon.`,
+            data: {
+                action: 'accept-battle',
+                battleId: battle.id,
+                challengerId: challenger.id
+            }
         });
 
         res.json({
