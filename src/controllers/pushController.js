@@ -25,18 +25,17 @@ exports.saveSubscription = async (req, res) => {
 
         console.log(`[Push] Saving subscription for user ${req.userId}, endpoint: ${endpoint.substring(0, 50)}...`);
 
-        // Use findOrCreate pattern (upsert with separate where doesn't work in all Sequelize versions)
-        const [sub, created] = await PushSubscription.findOrCreate({
-            where: { userId: req.userId, endpoint },
-            defaults: { userId: req.userId, endpoint, keys }
+        // Safe upsert using findOne
+        const existing = await PushSubscription.findOne({
+            where: { userId: req.userId, endpoint }
         });
-
-        if (!created) {
-            // Update keys if subscription already exists
-            await sub.update({ keys });
+        if (existing) {
+            await existing.update({ keys });
+        } else {
+            await PushSubscription.create({ userId: req.userId, endpoint, keys });
         }
 
-        console.log(`[Push] Subscription ${created ? 'created' : 'updated'} for user ${req.userId}`);
+        console.log(`[Push] Subscription saved for user ${req.userId}`);
         res.json({ message: 'Suscripción guardada' });
     } catch (error) {
         console.error('Save subscription error:', error);

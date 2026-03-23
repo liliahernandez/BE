@@ -8,8 +8,7 @@ const PushSubscription = sequelize.define('PushSubscription', {
     },
     endpoint: {
         type: DataTypes.TEXT,
-        allowNull: false,
-        unique: true
+        allowNull: false
     },
     keys: {
         type: DataTypes.JSON,
