@@ -24,7 +24,7 @@ exports.addFavorite = async (req, res) => {
             userId: req.userId,
             pokemonId: pokemon.id,
             name: pokemon.name,
-            sprite: pokemon.sprites.front_default,
+            sprite: pokemon.sprites.other['official-artwork'].front_default || pokemon.sprites.front_default,
             types: pokemon.types.map(t => t.type.name)
         });
 
@@ -124,7 +124,7 @@ exports.updateTeam = async (req, res) => {
                     teamId: team._id,
                     pokemonId: p.id,
                     name: p.name,
-                    sprite: p.sprites.front_default,
+                    sprite: p.sprites.other['official-artwork'].front_default || p.sprites.front_default,
                     types: p.types.map(t => t.type.name),
                     stats: p.stats.reduce((acc, stat) => { acc[stat.stat.name] = stat.base_stat; return acc; }, {}),
                     moves: p.moves.slice(0, 4).map(m => m.move.name)

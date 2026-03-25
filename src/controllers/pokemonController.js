@@ -18,7 +18,7 @@ exports.getPokemonList = async (req, res) => {
                 return {
                     id: parseInt(id),
                     name: pokemon.name,
-                    sprite: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`,
+                    sprite: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`,
                     types: [] // Empty types to save 1000+ requests
                 };
             });
@@ -30,7 +30,7 @@ exports.getPokemonList = async (req, res) => {
                     return {
                         id: details.id,
                         name: details.name,
-                        sprite: details.sprites.front_default,
+                        sprite: details.sprites.other['official-artwork'].front_default || details.sprites.front_default,
                         types: details.types.map(t => t.type.name)
                     };
                 })
@@ -118,7 +118,7 @@ exports.searchPokemon = async (req, res) => {
         res.json({
             id: pokemon.id,
             name: pokemon.name,
-            sprite: pokemon.sprites.front_default,
+            sprite: pokemon.sprites.other['official-artwork'].front_default || pokemon.sprites.front_default,
             types: pokemon.types.map(t => t.type.name)
         });
     } catch (error) {
