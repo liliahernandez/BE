@@ -84,9 +84,16 @@ exports.getPokemonDetails = async (req, res) => {
             }, {}),
             abilities: pokemon.abilities.map(a => ({
                 name: a.ability.name,
-                is_hidden: a.is_hidden
+                isHidden: a.is_hidden
             })),
-            moves: pokemon.moves.map(m => m.move.name), // Send all moves
+            moves: pokemon.moves.map(m => {
+                const version = m.version_group_details[0];
+                return {
+                    name: m.move.name,
+                    method: version ? version.move_learn_method.name : 'unknown',
+                    level: version ? version.level_learned_at : 0
+                };
+            }),
             height: pokemon.height,
             weight: pokemon.weight,
             species: {
