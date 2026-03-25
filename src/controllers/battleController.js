@@ -9,7 +9,7 @@ exports.createBattle = async (req, res) => {
         if (!opponentId || !teamId) return res.status(400).json({ error: 'ID de oponente y ID de equipo requeridos' });
 
         const challenger = await User.findById(req.userId).populate('friends');
-        const opponent = await User.findById(opponentId).populate({ path: 'teams', populate: { path: 'pokemon' } });
+        const opponent = await User.findById(opponentId);
 
         if (!opponent) return res.status(404).json({ error: 'Oponente no encontrado' });
 
@@ -19,8 +19,9 @@ exports.createBattle = async (req, res) => {
         const challengerTeamModel = await Team.findOne({ _id: teamId, userId: req.userId }).populate('pokemon');
         if (!challengerTeamModel) return res.status(404).json({ error: 'Equipo no encontrado' });
 
-        if (!opponent.teams || opponent.teams.length === 0) return res.status(400).json({ error: 'El oponente no tiene equipos' });
-        const opponentTeamModel = opponent.teams[0]; // Simplified: taking first team
+        const opponentTeams = await Team.find({ userId: opponentId }).populate('pokemon');
+        if (!opponentTeams || opponentTeams.length === 0) return res.status(400).json({ error: 'El oponente no tiene equipos' });
+        const opponentTeamModel = opponentTeams[0]; // Simplified: taking first team
 
         const battle = await Battle.create({
             challengerId: req.userId,
