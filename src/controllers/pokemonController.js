@@ -63,12 +63,14 @@ exports.getPokemonDetails = async (req, res) => {
             evolutionChain = pokeAPIService.parseEvolutionChain(chainData.chain);
         }
 
+        const encountersData = await pokeAPIService.getPokemonEncounters(idOrName);
+
         // Format response
         const response = {
             id: pokemon.id,
             name: pokemon.name,
             sprites: {
-                front_default: pokemon.sprites.front_default,
+                front_default: pokemon.sprites.other['official-artwork'].front_default || pokemon.sprites.front_default,
                 front_shiny: pokemon.sprites.front_shiny,
                 official_artwork: pokemon.sprites.other['official-artwork'].front_default
             },
@@ -84,7 +86,7 @@ exports.getPokemonDetails = async (req, res) => {
                 name: a.ability.name,
                 is_hidden: a.is_hidden
             })),
-            moves: pokemon.moves.slice(0, 20).map(m => m.move.name), // Limit to 20 moves
+            moves: pokemon.moves.map(m => m.move.name), // Send all moves
             height: pokemon.height,
             weight: pokemon.weight,
             species: {
@@ -94,6 +96,7 @@ exports.getPokemonDetails = async (req, res) => {
                 is_legendary: species.is_legendary,
                 is_mythical: species.is_mythical
             },
+            encounters: encountersData.slice(0, 15).map(e => e.location_area.name.replace(/-/g, ' ')),
             evolutionChain
         };
 

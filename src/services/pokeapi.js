@@ -23,6 +23,16 @@ class PokeAPIService {
         }
     }
 
+    // Get Pokemon encounters
+    async getPokemonEncounters(idOrName) {
+        try {
+            const response = await axios.get(`${POKEAPI_BASE_URL}/pokemon/${idOrName}/encounters`);
+            return response.data;
+        } catch (error) {
+            return []; // Return empty if not found
+        }
+    }
+
     // Get Pokemon species information (for evolution chain)
     async getPokemonSpecies(idOrName) {
         try {
@@ -98,9 +108,12 @@ class PokeAPIService {
         const evolutionLine = [];
 
         const traverse = (node) => {
+            const urlParts = node.species.url.split('/');
+            const id = urlParts[urlParts.length - 2];
             evolutionLine.push({
+                id: parseInt(id),
                 name: node.species.name,
-                url: node.species.url
+                sprite: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`
             });
 
             if (node.evolves_to.length > 0) {
@@ -108,7 +121,7 @@ class PokeAPIService {
             }
         };
 
-        traverse(chain);
+        traverse(chain.chain);
         return evolutionLine;
     }
 }
