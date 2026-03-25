@@ -66,23 +66,28 @@ exports.getTeams = async (req, res) => {
 
 exports.createTeam = async (req, res) => {
     try {
-        const { name, pokemonIds } = req.body;
+        const { name, pokemonIds, pokemon } = req.body;
         if (!name) return res.status(400).json({ error: 'Nombre del equipo requerido' });
-        if (!pokemonIds || pokemonIds.length > 6) return res.status(400).json({ error: 'Tamaño de equipo inválido' });
+        
+        const pList = pokemon || (pokemonIds ? pokemonIds.map(id => ({ pokemonId: id, moves: [] })) : []);
+        if (pList.length > 6) return res.status(400).json({ error: 'Tamaño de equipo inválido' });
 
         const team = await Team.create({ userId: req.userId, name });
 
-        if (pokemonIds && pokemonIds.length > 0) {
-            const pokemonData = await Promise.all(pokemonIds.map(id => pokeAPIService.getPokemonDetails(id)));
-            const teamPokemon = pokemonData.map(p => ({
-                teamId: team._id,
-                pokemonId: p.id,
-                name: p.name,
-                sprite: p.sprites.other['official-artwork'].front_default || p.sprites.front_default,
-                types: p.types.map(t => t.type.name),
-                stats: p.stats.reduce((acc, stat) => { acc[stat.stat.name] = stat.base_stat; return acc; }, {}),
-                moves: p.moves.slice(0, 4).map(m => m.move.name)
-            }));
+        if (pList.length > 0) {
+            const pokemonData = await Promise.all(pList.map(p => pokeAPIService.getPokemonDetails(p.pokemonId)));
+            const teamPokemon = pokemonData.map((apiData, index) => {
+                const userMoves = pList[index].moves;
+                return {
+                    teamId: team._id,
+                    pokemonId: apiData.id,
+                    name: apiData.name,
+                    sprite: apiData.sprites?.other?.['official-artwork']?.front_default || apiData.sprites?.front_default,
+                    types: apiData.types ? apiData.types.map(t => t.type.name) : [],
+                    stats: apiData.stats ? apiData.stats.reduce((acc, stat) => { acc[stat.stat.name] = stat.base_stat; return acc; }, {}) : {},
+                    moves: (userMoves && userMoves.length > 0) ? userMoves : (apiData.moves ? apiData.moves.slice(0, 4).map(m => m.move?.name || m.name) : [])
+                };
+            });
             const createdPokemon = await TeamPokemon.insertMany(teamPokemon);
             team.pokemon = createdPokemon.map(cp => cp._id);
             await team.save();
@@ -113,28 +118,33 @@ exports.deleteTeam = async (req, res) => {
 exports.updateTeam = async (req, res) => {
     try {
         const { teamId } = req.params;
-        const { name, pokemonIds } = req.body;
+        const { name, pokemonIds, pokemon } = req.body;
 
         const team = await Team.findOne({ _id: teamId, userId: req.userId });
         if (!team) return res.status(404).json({ error: 'Equipo no encontrado' });
 
         if (name) { team.name = name; await team.save(); }
 
-        if (pokemonIds) {
-            if (pokemonIds.length > 6) return res.status(400).json({ error: 'Tamaño de equipo inválido' });
+        const pList = pokemon || (pokemonIds ? pokemonIds.map(id => ({ pokemonId: id, moves: [] })) : undefined);
+
+        if (pList) {
+            if (pList.length > 6) return res.status(400).json({ error: 'Tamaño de equipo inválido' });
             await TeamPokemon.deleteMany({ teamId });
             
-            if (pokemonIds.length > 0) {
-                const pokemonData = await Promise.all(pokemonIds.map(id => pokeAPIService.getPokemonDetails(id)));
-                const teamPokemon = pokemonData.map(p => ({
-                    teamId: team._id,
-                    pokemonId: p.id,
-                    name: p.name,
-                    sprite: p.sprites.other['official-artwork'].front_default || p.sprites.front_default,
-                    types: p.types.map(t => t.type.name),
-                    stats: p.stats.reduce((acc, stat) => { acc[stat.stat.name] = stat.base_stat; return acc; }, {}),
-                    moves: p.moves.slice(0, 4).map(m => m.move.name)
-                }));
+            if (pList.length > 0) {
+                const pokemonData = await Promise.all(pList.map(p => pokeAPIService.getPokemonDetails(p.pokemonId)));
+                const teamPokemon = pokemonData.map((apiData, index) => {
+                    const userMoves = pList[index].moves;
+                    return {
+                        teamId: team._id,
+                        pokemonId: apiData.id,
+                        name: apiData.name,
+                        sprite: apiData.sprites?.other?.['official-artwork']?.front_default || apiData.sprites?.front_default,
+                        types: apiData.types ? apiData.types.map(t => t.type.name) : [],
+                        stats: apiData.stats ? apiData.stats.reduce((acc, stat) => { acc[stat.stat.name] = stat.base_stat; return acc; }, {}) : {},
+                        moves: (userMoves && userMoves.length > 0) ? userMoves : (apiData.moves ? apiData.moves.slice(0, 4).map(m => m.move?.name || m.name) : [])
+                    };
+                });
                 const createdPokemon = await TeamPokemon.insertMany(teamPokemon);
                 team.pokemon = createdPokemon.map(cp => cp._id);
                 await team.save();
