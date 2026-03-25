@@ -1,8 +1,11 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const sequelize = require('./src/config/database');
+const connectDB = require('./src/config/database');
 const { User, Favorite, Team, TeamPokemon } = require('./src/models');
+
+// Connect to MongoDB
+connectDB();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -38,24 +41,18 @@ app.use('/battles', require('./src/routes/battles'));
 app.use('/push', require('./src/routes/push'));
 
 // Database sync and server start
-sequelize.sync({ alter: true }) // Changed to alter to update User table with new columns
-    .then(() => {
-        console.log('PostgreSQL database synced');
-        server.listen(PORT, '0.0.0.0', () => {
-            console.log(`Server running on port ${PORT}`);
-            console.log(`➜  Local:   http://localhost:${PORT}/`);
-            const os = require('os');
-            const networkInterfaces = os.networkInterfaces();
-            for (const interfaceName in networkInterfaces) {
-                const interfaces = networkInterfaces[interfaceName];
-                for (const iface of interfaces) {
-                    if (iface.family === 'IPv4' && !iface.internal) {
-                        console.log(`➜  Network: http://${iface.address}:${PORT}/`);
-                    }
-                }
+// Start server
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log(`➜  Local:   http://localhost:${PORT}/`);
+    const os = require('os');
+    const networkInterfaces = os.networkInterfaces();
+    for (const interfaceName in networkInterfaces) {
+        const interfaces = networkInterfaces[interfaceName];
+        for (const iface of interfaces) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                console.log(`➜  Network: http://${iface.address}:${PORT}/`);
             }
-        });
-    })
-    .catch(err => {
-        console.error('Failed to sync database:', err);
-    });
+        }
+    }
+});

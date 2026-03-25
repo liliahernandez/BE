@@ -1,34 +1,42 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+const mongoose = require('mongoose');
 
-const Battle = sequelize.define('Battle', {
-    id: {
-        type: DataTypes.INTEGER,
-        autoIncrement: true,
-        primaryKey: true
+const battleSchema = new mongoose.Schema({
+    challengerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    opponentId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    winnerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
     },
     status: {
-        type: DataTypes.ENUM('pending', 'active', 'completed', 'cancelled'),
-        defaultValue: 'pending'
+        type: String,
+        enum: ['pending', 'active', 'completed', 'cancelled'],
+        default: 'pending'
     },
     challengerTeam: {
-        type: DataTypes.JSONB,
-        allowNull: false
+        type: Object,
+        required: true
     },
     opponentTeam: {
-        type: DataTypes.JSONB,
-        allowNull: false
+        type: Object,
+        required: true
     },
     battleLog: {
-        type: DataTypes.JSONB,
-        defaultValue: []
+        type: [Object],
+        default: []
     },
     completedAt: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date
     }
 }, {
     timestamps: true
 });
 
-module.exports = Battle;
+module.exports = mongoose.model('Battle', battleSchema);

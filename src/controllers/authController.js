@@ -2,47 +2,24 @@ const jwt = require('jsonwebtoken');
 const { User, FriendRequest, Friendship } = require('../models');
 const { notifyUser } = require('../sockets/socket');
 const { sendPushToUser } = require('./pushController');
-const { Op } = require('sequelize');
 
-// Register new user
 exports.register = async (req, res) => {
     try {
         const { email, password, name, nickname } = req.body;
+        if (!email || !password || !name) return res.status(400).json({ error: 'Correo, contraseña y nombre requeridos' });
 
-        if (!email || !password || !name) {
-            return res.status(400).json({ error: 'Correo, contraseña y nombre requeridos' });
-        }
-
-        const existingUser = await User.findOne({ where: { email } });
-        if (existingUser) {
-            return res.status(400).json({ error: 'Correo ya registrado' });
-        }
+        const existingUser = await User.findOne({ email });
+        if (existingUser) return res.status(400).json({ error: 'Correo ya registrado' });
 
         const friendCode = await User.generateFriendCode();
+        const user = await User.create({ email, password, name, nickname, friendCode });
 
-        const user = await User.create({
-            email,
-            password,
-            name,
-            nickname,
-            friendCode
-        });
-
-        const token = jwt.sign(
-            { userId: user.id },
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' }
-        );
+        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
         res.status(201).json({
             message: 'Usuario registrado exitosamente',
             token,
-            user: {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                friendCode: user.friendCode
-            }
+            user: { id: user._id, email: user.email, name: user.name, friendCode: user.friendCode }
         });
     } catch (error) {
         console.error('Registration error:', error);
@@ -50,40 +27,23 @@ exports.register = async (req, res) => {
     }
 };
 
-// Login user
 exports.login = async (req, res) => {
     try {
         const { email, password } = req.body;
+        if (!email || !password) return res.status(400).json({ error: 'Correo y contraseña requeridos' });
 
-        if (!email || !password) {
-            return res.status(400).json({ error: 'Correo y contraseña requeridos' });
-        }
-
-        const user = await User.findOne({ where: { email } });
-        if (!user) {
-            return res.status(401).json({ error: 'Credenciales inválidas' });
-        }
+        const user = await User.findOne({ email });
+        if (!user) return res.status(401).json({ error: 'Credenciales inválidas' });
 
         const isMatch = await user.comparePassword(password);
-        if (!isMatch) {
-            return res.status(401).json({ error: 'Credenciales inválidas' });
-        }
+        if (!isMatch) return res.status(401).json({ error: 'Credenciales inválidas' });
 
-        const token = jwt.sign(
-            { userId: user.id },
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' }
-        );
+        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
         res.json({
             message: 'Inicio de sesión exitoso',
             token,
-            user: {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                friendCode: user.friendCode
-            }
+            user: { id: user._id, email: user.email, name: user.name, friendCode: user.friendCode }
         });
     } catch (error) {
         console.error('Login error:', error);
@@ -91,23 +51,12 @@ exports.login = async (req, res) => {
     }
 };
 
-// Get profile
 exports.getProfile = async (req, res) => {
     try {
-        const user = await User.findByPk(req.userId, {
-            include: [{
-                model: User,
-                as: 'friends',
-                attributes: ['id', 'email', 'name', 'nickname', 'friendCode'],
-                through: { attributes: [] } // Exclude junction table
-            }],
-            attributes: { exclude: ['password'] }
-        });
-
-        if (!user) {
-            return res.status(404).json({ error: 'Usuario no encontrado' });
-        }
-
+        const user = await User.findById(req.userId)
+            .populate('friends', 'email name nickname friendCode')
+            .select('-password');
+        if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
         res.json({ user });
     } catch (error) {
         console.error('Get profile error:', error);
@@ -115,164 +64,74 @@ exports.getProfile = async (req, res) => {
     }
 };
 
-// Add friend (Send / Accept Request)
 exports.addFriend = async (req, res) => {
     try {
         const { friendCode, action, friendId } = req.body;
-        console.log(`[Auth] Friend Action: ${action} | fromUser: ${req.userId} | friendId: ${friendId} | friendCode: ${friendCode}`);
-        const user = await User.findByPk(req.userId);
+        const user = await User.findById(req.userId).populate('friends');
 
         if (action === 'send_request') {
-            if (!friendCode) {
-                return res.status(400).json({ error: 'Código de amigo requerido' });
-            }
-            const friend = await User.findOne({ where: { friendCode } });
-            if (!friend) {
-                return res.status(404).json({ error: 'Código de amigo no encontrado' });
-            }
-            if (friend.id === req.userId) {
-                return res.status(400).json({ error: 'No puedes añadirte a ti mismo' });
-            }
-            const hasFriend = await user.hasFriend(friend);
-            if (hasFriend) {
+            if (!friendCode) return res.status(400).json({ error: 'Código de amigo requerido' });
+            const friend = await User.findOne({ friendCode });
+            if (!friend) return res.status(404).json({ error: 'Código de amigo no encontrado' });
+            if (friend._id.toString() === req.userId) return res.status(400).json({ error: 'No puedes añadirte a ti mismo' });
+            
+            if (user.friends.some(f => f._id.toString() === friend._id.toString())) {
                 return res.status(400).json({ error: 'Ya son amigos' });
             }
-            
-            // Check if there is already a reciprocal request from the other user
-            const existingInverseRequest = await FriendRequest.findOne({
-                where: { senderId: friend.id, receiverId: user.id }
-            });
+
+            const existingInverseRequest = await FriendRequest.findOne({ senderId: friend._id, receiverId: user._id });
 
             if (existingInverseRequest) {
-                // If the other person already added us, make them friends IMMEDIATELY
-                await Friendship.findOrCreate({ where: { userId: user.id, friendId: friend.id } });
-                await Friendship.findOrCreate({ where: { userId: friend.id, friendId: user.id } });
-
-                // Clean up the pending request
-                await existingInverseRequest.destroy();
-
-                // Notify both users after a short delay to ensure DB sync
-                setTimeout(() => {
-                    notifyUser(friend.id, 'friendship_updated', payload);
-                    notifyUser(user.id, 'friendship_updated', payload);
-                }, 500);
-
+                user.friends.push(friend._id);
+                friend.friends.push(user._id);
+                await user.save();
+                await friend.save();
+                await Friendship.create({ userId: user._id, friendId: friend._id });
+                await Friendship.create({ userId: friend._id, friendId: user._id });
+                await existingInverseRequest.deleteOne();
                 return res.json({ message: '¡Amistad establecida automáticamente!', isMutual: true });
             }
 
-            // Normal flow: Send socket notification
-            notifyUser(friend.id, 'friend_request', {
-                requesterId: user.id,
-                requesterEmail: user.email,
-                requesterName: user.name,
-                requesterFriendCode: user.friendCode
+            notifyUser(friend._id, 'friend_request', { requesterId: user._id, requesterName: user.name });
+            sendPushToUser(friend._id, {
+                title: 'Solicitud de Amistad 🤝', body: `${user.name} quiere ser tu amigo.`,
+                data: { action: 'accept-friend', requesterId: user._id }
             });
 
-            // Also send Web Push notification (works even if app is closed)
-            sendPushToUser(friend.id, {
-                title: 'Solicitud de Amistad 🤝',
-                body: `${user.name || user.email} quiere ser tu amigo en Pokédex.`,
-                data: {
-                    action: 'accept-friend',
-                    requesterId: user.id
-                }
-            });
-
-            // Store in DB for persistence
-            await FriendRequest.findOrCreate({
-                where: { senderId: user.id, receiverId: friend.id },
-                defaults: { status: 'pending' }
-            });
-            
+            const exists = await FriendRequest.findOne({ senderId: user._id, receiverId: friend._id });
+            if(!exists) await FriendRequest.create({ senderId: user._id, receiverId: friend._id, status: 'pending' });
             return res.json({ message: 'Solicitud de amistad enviada' });
         } 
-        
         if (action === 'accept_request') {
-            if (!friendId) {
-                return res.status(400).json({ error: 'ID de amigo requerido' });
-            }
-            const friend = await User.findByPk(friendId);
-            if (!friend) {
-                return res.status(404).json({ error: 'Usuario no encontrado' });
-            }
-            
-            const hasFriend = await user.hasFriend(friend);
-            if (hasFriend) {
-                return res.status(400).json({ error: 'Ya son amigos' });
-            }
+            const friend = await User.findById(friendId);
+            if (!friend) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-            await Friendship.findOrCreate({ where: { userId: user.id, friendId: friend.id } });
-            await Friendship.findOrCreate({ where: { userId: friend.id, friendId: user.id } });
-            
-            // Clear pending request from DB
-            await FriendRequest.destroy({
-                where: {
-                    [Op.or]: [
-                        { senderId: user.id, receiverId: friend.id },
-                        { senderId: friend.id, receiverId: user.id }
-                    ]
-                }
+            user.friends.push(friend._id);
+            friend.friends.push(user._id);
+            await user.save();
+            await friend.save();
+            await Friendship.create({ userId: user._id, friendId: friend._id });
+            await Friendship.create({ userId: friend._id, friendId: user._id });
+
+            await FriendRequest.deleteMany({
+                $or: [
+                    { senderId: user._id, receiverId: friend._id },
+                    { senderId: friend._id, receiverId: user._id }
+                ]
             });
-            
-            const payload = {
-                message: '¡Ahora son amigos!',
-                friendId: user.id,
-                friendName: user.name,
-                otherId: friend.id,
-                otherName: friend.name
-            };
 
-            // Notify BOTH users to refresh their lists after a short delay to ensure DB sync
-            console.log(`[Auth] Notifying users: ${user.id} and ${friend.id} of friendship success...`);
-            
-            setTimeout(() => {
-                // Current event
-                notifyUser(friend.id, 'friendship_updated', payload);
-                notifyUser(user.id, 'friendship_updated', payload);
-
-                // Legacy event fallback (for old clients)
-                notifyUser(friend.id, 'friend_request_accepted', payload);
-                notifyUser(user.id, 'friend_request_accepted', payload);
-            }, 500);
-
-            return res.json({
-                message: 'Amigo añadido exitosamente',
-                friend: {
-                    id: friend.id,
-                    email: friend.email,
-                    name: friend.name,
-                    friendCode: friend.friendCode
-                }
-            });
+            return res.json({ message: 'Amigo añadido exitosamente', friend: { id: friend._id, name: friend.name } });
         }
-
         return res.status(400).json({ error: 'Acción no válida' });
     } catch (error) {
         console.error('Add friend error:', error);
-        res.status(500).json({ error: 'Error procesando solicitud de amistad' });
+        res.status(500).json({ error: 'Error' });
     }
 };
 
-// Get friends
 exports.getFriends = async (req, res) => {
     try {
-        const user = await User.findByPk(req.userId, {
-            include: [{
-                model: User,
-                as: 'friends',
-                attributes: ['id', 'email', 'name', 'friendCode'],
-                through: { attributes: [] }
-            }]
-        });
-
-        try {
-            console.log(`[Auth] User ${req.userId} (Email: ${user?.email}) has ${user?.friends?.length || 0} friends in DB.`);
-            if (user?.friends?.length > 0) {
-                user.friends.forEach(f => console.log(` - Amigo: ${f.name} (ID: ${f.id})`));
-            }
-        } catch (logLimit) {
-            console.log('[Auth] Error printing logs in getFriends');
-        }
+        const user = await User.findById(req.userId).populate('friends', 'email name friendCode');
         res.json({ friends: user?.friends || [] });
     } catch (error) {
         console.error('Get friends error:', error);
@@ -280,24 +139,25 @@ exports.getFriends = async (req, res) => {
     }
 };
 
-// Remove friend
 exports.removeFriend = async (req, res) => {
     try {
         const { friendId } = req.params;
-        const user = await User.findByPk(req.userId);
-        const friend = await User.findByPk(friendId);
+        const user = await User.findById(req.userId);
+        const friend = await User.findById(friendId);
 
-        if (!friend) {
-            return res.status(404).json({ error: 'Amigo no encontrado' });
-        }
+        if (!friend) return res.status(404).json({ error: 'Amigo no encontrado' });
 
-        const hasFriend = await user.hasFriend(friend);
-        if (!hasFriend) {
-            return res.status(400).json({ error: 'No son amigos' });
-        }
+        user.friends = user.friends.filter(id => id.toString() !== friendId);
+        friend.friends = friend.friends.filter(id => id.toString() !== req.userId);
+        await user.save();
+        await friend.save();
 
-        await user.removeFriend(friend);
-        await friend.removeFriend(user); // Bi-directional
+        await Friendship.deleteMany({
+            $or: [
+                { userId: user._id, friendId: friend._id },
+                { userId: friend._id, friendId: user._id }
+            ]
+        });
 
         res.json({ message: 'Amigo eliminado exitosamente' });
     } catch (error) {
@@ -306,20 +166,11 @@ exports.removeFriend = async (req, res) => {
     }
 };
 
-// Get pending friend requests (sent TO this user)
 exports.getPendingRequests = async (req, res) => {
     try {
-        const requests = await FriendRequest.findAll({
-            where: { receiverId: req.userId, status: 'pending' }
-        });
-
-        // Get details of senders
+        const requests = await FriendRequest.find({ receiverId: req.userId, status: 'pending' });
         const senderIds = requests.map(r => r.senderId);
-        const senders = await User.findAll({
-            where: { id: senderIds },
-            attributes: ['id', 'email', 'name', 'friendCode']
-        });
-
+        const senders = await User.find({ _id: { $in: senderIds } }).select('email name friendCode');
         res.json({ pending: senders });
     } catch (error) {
         console.error('Error fetching pending requests:', error);

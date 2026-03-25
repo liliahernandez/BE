@@ -1,33 +1,33 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+const mongoose = require('mongoose');
 
-// To store individual pokemon in a team
-const TeamPokemon = sequelize.define('TeamPokemon', {
-    id: {
-        type: DataTypes.INTEGER,
-        autoIncrement: true,
-        primaryKey: true
+const teamPokemonSchema = new mongoose.Schema({
+    teamId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Team',
+        required: true
     },
     pokemonId: {
-        type: DataTypes.INTEGER,
-        allowNull: false
+        type: Number,
+        required: true
     },
     name: {
-        type: DataTypes.STRING,
-        allowNull: false
+        type: String,
+        required: true
     },
     sprite: {
-        type: DataTypes.STRING
+        type: String
     },
     types: {
-        type: DataTypes.ARRAY(DataTypes.STRING)
+        type: [String]
     },
     stats: {
-        type: DataTypes.JSONB // Requires Postgres
+        type: Object
     },
     moves: {
-        type: DataTypes.ARRAY(DataTypes.STRING)
+        type: [String]
     }
+}, {
+    timestamps: true
 });
 
-module.exports = TeamPokemon;
+module.exports = mongoose.model('TeamPokemon', teamPokemonSchema);

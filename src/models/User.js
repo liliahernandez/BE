@@ -1,74 +1,57 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
-const User = sequelize.define('User', {
-    id: {
-        type: DataTypes.INTEGER,
-        autoIncrement: true,
-        primaryKey: true
-    },
+const userSchema = new mongoose.Schema({
     email: {
-        type: DataTypes.STRING,
-        allowNull: false,
+        type: String,
+        required: true,
         unique: true,
-        validate: {
-            isEmail: true
-        }
+        match: [/.+\@.+\..+/, 'Please fill a valid email address']
     },
     name: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        defaultValue: 'Entrenador'
+        type: String,
+        required: true,
+        default: 'Entrenador'
     },
     nickname: {
-        type: DataTypes.STRING,
-        allowNull: true
+        type: String
     },
     password: {
-        type: DataTypes.STRING,
-        allowNull: false 
+        type: String,
+        required: true
     },
     friendCode: {
-        type: DataTypes.STRING,
-        allowNull: false,
+        type: String,
+        required: true,
         unique: true
-    }
+    },
+    favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Favorite' }],
+    teams: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Team' }]
 }, {
-    hooks: {
-        beforeCreate: async (user) => {
-            if (user.password) {
-                const salt = await bcrypt.genSalt(10);
-                user.password = await bcrypt.hash(user.password, salt);
-            }
-        },
-        beforeUpdate: async (user) => {
-            if (user.changed('password')) {
-                const salt = await bcrypt.genSalt(10);
-                user.password = await bcrypt.hash(user.password, salt);
-            }
-        }
-    }
+    timestamps: true
 });
 
-// Instance method to check password
-User.prototype.comparePassword = async function (candidatePassword) {
+userSchema.pre('save', async function(next) {
+    if (this.isModified('password')) {
+        const salt = await bcrypt.genSalt(10);
+        this.password = await bcrypt.hash(this.password, salt);
+    }
+    next();
+});
+
+userSchema.methods.comparePassword = async function(candidatePassword) {
     return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Static method to generate friend code
-User.generateFriendCode = async function () {
+userSchema.statics.generateFriendCode = async function() {
     let code;
     let exists = true;
-
     while (exists) {
         code = Math.random().toString(36).substring(2, 10).toUpperCase();
-        // Check if exists
-        const user = await User.findOne({ where: { friendCode: code } });
+        const user = await this.findOne({ friendCode: code });
         if (!user) exists = false;
     }
-
     return code;
 };
 
-module.exports = User;
+module.exports = mongoose.model('User', userSchema);

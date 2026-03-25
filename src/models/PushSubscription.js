@@ -1,19 +1,21 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+const mongoose = require('mongoose');
 
-const PushSubscription = sequelize.define('PushSubscription', {
+const pushSubscriptionSchema = new mongoose.Schema({
     userId: {
-        type: DataTypes.INTEGER,
-        allowNull: false
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
     },
     endpoint: {
-        type: DataTypes.TEXT,
-        allowNull: false
+        type: String,
+        required: true
     },
     keys: {
-        type: DataTypes.JSON,
-        allowNull: false
+        type: Object,
+        required: true
     }
+}, {
+    timestamps: true
 });
 
-module.exports = PushSubscription;
+module.exports = mongoose.model('PushSubscription', pushSubscriptionSchema);

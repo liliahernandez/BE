@@ -1,7 +1,6 @@
 const webpush = require('web-push');
 const { PushSubscription } = require('../models');
 
-// Lazy VAPID initialization
 let vapidConfigured = false;
 function ensureVapid() {
     if (vapidConfigured) return;
@@ -15,7 +14,6 @@ function ensureVapid() {
     console.log('[Push] VAPID configured successfully');
 }
 
-// Save a push subscription for a user
 exports.saveSubscription = async (req, res) => {
     try {
         const { endpoint, keys } = req.body;
@@ -23,14 +21,12 @@ exports.saveSubscription = async (req, res) => {
             return res.status(400).json({ error: 'Subscription inválida' });
         }
 
-        console.log(`[Push] Saving subscription for user ${req.userId}, endpoint: ${endpoint.substring(0, 50)}...`);
+        console.log(`[Push] Saving subscription for user ${req.userId}...`);
 
-        // Safe upsert using findOne
-        const existing = await PushSubscription.findOne({
-            where: { userId: req.userId, endpoint }
-        });
+        const existing = await PushSubscription.findOne({ userId: req.userId, endpoint });
         if (existing) {
-            await existing.update({ keys });
+            existing.keys = keys;
+            await existing.save();
         } else {
             await PushSubscription.create({ userId: req.userId, endpoint, keys });
         }
@@ -43,11 +39,10 @@ exports.saveSubscription = async (req, res) => {
     }
 };
 
-// Send a push notification to a specific user
 exports.sendPushToUser = async (userId, payload) => {
     try {
         ensureVapid();
-        const subscriptions = await PushSubscription.findAll({ where: { userId } });
+        const subscriptions = await PushSubscription.find({ userId });
 
         if (subscriptions.length === 0) {
             console.log(`[Push] No subscriptions for user ${userId}`);
@@ -65,8 +60,7 @@ exports.sendPushToUser = async (userId, payload) => {
                 console.log(`[Push] Sent to user ${userId}`);
             } catch (err) {
                 if (err.statusCode === 410 || err.statusCode === 404) {
-                    // Subscription expired — clean up
-                    await sub.destroy();
+                    await sub.deleteOne();
                     console.log(`[Push] Removed expired subscription for user ${userId}`);
                 } else {
                     console.error(`[Push] Error sending to user ${userId}:`, err.message);
@@ -78,7 +72,6 @@ exports.sendPushToUser = async (userId, payload) => {
     }
 };
 
-// Get VAPID public key
 exports.getVapidPublicKey = (req, res) => {
     res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
 };

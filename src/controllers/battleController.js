@@ -1,57 +1,27 @@
-const { Battle, User, Team, TeamPokemon } = require('../models');
+const { Battle, User, Team } = require('../models');
 const battleService = require('../services/battle');
 const { notifyUser } = require('../sockets/socket');
 const { sendPushToUser } = require('./pushController');
-const { Op } = require('sequelize');
 
-// Create battle challenge
 exports.createBattle = async (req, res) => {
     try {
         const { opponentId, teamId } = req.body;
+        if (!opponentId || !teamId) return res.status(400).json({ error: 'ID de oponente y ID de equipo requeridos' });
 
-        if (!opponentId || !teamId) {
-            return res.status(400).json({ error: 'ID de oponente y ID de equipo requeridos' });
-        }
+        const challenger = await User.findById(req.userId).populate('friends');
+        const opponent = await User.findById(opponentId).populate({ path: 'teams', populate: { path: 'pokemon' } });
 
-        // Check if opponent exists 
-        const challenger = await User.findByPk(req.userId, {
-            include: [{ model: User, as: 'friends' }]
-        });
-        const opponent = await User.findByPk(opponentId, {
-            include: [{ 
-                model: Team, 
-                as: 'teams',
-                include: [{ model: TeamPokemon, as: 'pokemon' }]
-             }]
-        });
+        if (!opponent) return res.status(404).json({ error: 'Oponente no encontrado' });
 
-        if (!opponent) {
-            return res.status(404).json({ error: 'Oponente no encontrado' });
-        }
+        const isFriend = challenger.friends.some(f => f._id.toString() === opponentId);
+        if (!isFriend) return res.status(400).json({ error: 'Solo puedes batallar con amigos' });
 
-        // Check if friends
-        const isFriend = await challenger.hasFriend(opponent);
-        if (!isFriend) {
-            return res.status(400).json({ error: 'Solo puedes batallar con amigos' });
-        }
+        const challengerTeamModel = await Team.findOne({ _id: teamId, userId: req.userId }).populate('pokemon');
+        if (!challengerTeamModel) return res.status(404).json({ error: 'Equipo no encontrado' });
 
-        // Get challenger's team
-        const challengerTeamModel = await Team.findOne({
-            where: { id: teamId, userId: req.userId },
-            include: [{ model: TeamPokemon, as: 'pokemon' }]
-        });
-        
-        if (!challengerTeamModel) {
-            return res.status(404).json({ error: 'Equipo no encontrado' });
-        }
+        if (!opponent.teams || opponent.teams.length === 0) return res.status(400).json({ error: 'El oponente no tiene equipos' });
+        const opponentTeamModel = opponent.teams[0]; // Simplified: taking first team
 
-        // Get opponent's first team 
-        if (!opponent.teams || opponent.teams.length === 0) {
-            return res.status(400).json({ error: 'El oponente no tiene equipos' });
-        }
-        const opponentTeamModel = opponent.teams[0];
-
-        // Create battle
         const battle = await Battle.create({
             challengerId: req.userId,
             opponentId: opponentId,
@@ -60,76 +30,49 @@ exports.createBattle = async (req, res) => {
             status: 'pending'
         });
 
-        // Notify the opponent in real-time via socket
         notifyUser(opponentId, 'battle_request', {
-            battleId: battle.id,
-            challengerId: challenger.id,
+            battleId: battle._id,
+            challengerId: challenger._id,
             challengerEmail: challenger.email,
             challengerName: challenger.name,
             challengerFriendCode: challenger.friendCode
         });
 
-        // Also send Web Push notification (works even if app is closed)
         sendPushToUser(opponentId, {
             title: '¡Reto de Batalla! ⚔️',
             body: `${challenger.name || challenger.email} te ha retado a una batalla Pokémon.`,
-            data: {
-                action: 'accept-battle',
-                battleId: battle.id,
-                challengerId: challenger.id
-            }
+            data: { action: 'accept-battle', battleId: battle._id, challengerId: challenger._id }
         });
 
-        res.json({
-            message: 'Batalla creada exitosamente',
-            battleId: battle.id,
-            battle
-        });
+        res.json({ message: 'Batalla creada exitosamente', battleId: battle._id, battle });
     } catch (error) {
         console.error('Create battle error:', error);
         res.status(500).json({ error: 'Error creando batalla' });
     }
 };
 
-// Start/simulate battle
 exports.startBattle = async (req, res) => {
     try {
-        const { battleId } = req.params;
-
-        const battle = await battleService.simulateBattle(battleId);
-
-        res.json({
-            message: 'Batalla completada',
-            battle
-        });
+        const battle = await battleService.simulateBattle(req.params.battleId);
+        res.json({ message: 'Batalla completada', battle });
     } catch (error) {
         console.error('Start battle error:', error);
         res.status(500).json({ error: error.message || 'Error iniciando batalla' });
     }
 };
 
-// Get battle details
 exports.getBattle = async (req, res) => {
     try {
-        const { battleId } = req.params;
+        const battle = await Battle.findById(req.params.battleId)
+            .populate('challenger', 'email name friendCode')
+            .populate('opponent', 'email name friendCode')
+            .populate('winner', 'email name friendCode');
 
-        const battle = await Battle.findByPk(battleId, {
-            include: [
-                { model: User, as: 'challenger', attributes: ['email', 'name', 'friendCode'] },
-                { model: User, as: 'opponent', attributes: ['email', 'name', 'friendCode'] },
-                { model: User, as: 'winner', attributes: ['email', 'name', 'friendCode'] }
-            ]
-        });
+        if (!battle) return res.status(404).json({ error: 'Batalla no encontrada' });
 
-        if (!battle) {
-            return res.status(404).json({ error: 'Batalla no encontrada' });
-        }
-
-        // Check if user is part of this battle
-        if (battle.challengerId !== req.userId && battle.opponentId !== req.userId) {
+        if (battle.challengerId.toString() !== req.userId && battle.opponentId.toString() !== req.userId) {
             return res.status(403).json({ error: 'No autorizado para ver esta batalla' });
         }
-
         res.json({ battle });
     } catch (error) {
         console.error('Get battle error:', error);
@@ -137,24 +80,16 @@ exports.getBattle = async (req, res) => {
     }
 };
 
-// Get user's battles
 exports.getUserBattles = async (req, res) => {
     try {
-        const battles = await Battle.findAll({
-            where: {
-                [Op.or]: [
-                    { challengerId: req.userId },
-                    { opponentId: req.userId }
-                ]
-            },
-            include: [
-                { model: User, as: 'challenger', attributes: ['email', 'name', 'friendCode'] },
-                { model: User, as: 'opponent', attributes: ['email', 'name', 'friendCode'] },
-                { model: User, as: 'winner', attributes: ['email', 'name', 'friendCode'] }
-            ],
-            order: [['createdAt', 'DESC']],
-            limit: 20
-        });
+        const battles = await Battle.find({
+            $or: [{ challengerId: req.userId }, { opponentId: req.userId }]
+        })
+        .populate('challenger', 'email name friendCode')
+        .populate('opponent', 'email name friendCode')
+        .populate('winner', 'email name friendCode')
+        .sort({ createdAt: -1 })
+        .limit(20);
 
         res.json({ battles });
     } catch (error) {
@@ -163,29 +98,15 @@ exports.getUserBattles = async (req, res) => {
     }
 };
 
-// Cancel battle
 exports.cancelBattle = async (req, res) => {
     try {
-        const { battleId } = req.params;
-
-        const battle = await Battle.findByPk(battleId);
-
-        if (!battle) {
-            return res.status(404).json({ error: 'Batalla no encontrada' });
-        }
-
-        // Only challenger can cancel
-        if (battle.challengerId !== req.userId) {
-            return res.status(403).json({ error: 'Solo el retador puede cancelar la batalla' });
-        }
-
-        if (battle.status !== 'pending') {
-            return res.status(400).json({ error: 'Solo se pueden cancelar batallas pendientes' });
-        }
+        const battle = await Battle.findById(req.params.battleId);
+        if (!battle) return res.status(404).json({ error: 'Batalla no encontrada' });
+        if (battle.challengerId.toString() !== req.userId) return res.status(403).json({ error: 'Solo el retador puede cancelar' });
+        if (battle.status !== 'pending') return res.status(400).json({ error: 'Solo se pueden cancelar batallas pendientes' });
 
         battle.status = 'cancelled';
         await battle.save();
-
         res.json({ message: 'Batalla cancelada exitosamente' });
     } catch (error) {
         console.error('Cancel battle error:', error);
