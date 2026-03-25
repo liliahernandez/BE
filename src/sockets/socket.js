@@ -62,6 +62,44 @@ const initSocket = (server) => {
                 }
             }
         });
+
+        // PvP Battle Handlers
+        socket.on('join_battle', (battleId) => {
+            const room = `battle_${battleId}`;
+            socket.join(room);
+            console.log(`User ${userId} joined room ${room}`);
+            // Let the room know a player connected/reconnected
+            io.to(room).emit('player_joined', { userId });
+        });
+
+        socket.on('select_move', async (data) => {
+            try {
+                const { battleId, move } = data;
+                const ioRoom = `battle_${battleId}`;
+                const battleService = require('../../src/services/battle'); // lazy load to avoid circular
+                
+                // Track move selection
+                const result = await battleService.registerMoveAction(battleId, userId, move);
+                
+                // Let other player know we selected a move (without revealing the move yet)
+                socket.to(ioRoom).emit('opponent_move_selected', { ready: true });
+
+                // If both players selected, engine calculated the turn
+                if (result && result.turnExecuted) {
+                    io.to(ioRoom).emit('turn_result', { battle: result.battle });
+                }
+            } catch (err) {
+                console.error('Socket select_move error:', err);
+                socket.emit('battle_error', { message: err.message });
+            }
+        });
+
+        socket.on('leave_battle', (battleId) => {
+            socket.leave(`battle_${battleId}`);
+            console.log(`User ${userId} left room battle_${battleId}`);
+            // Could set battle status to cancelled if player abandons
+            socket.to(`battle_${battleId}`).emit('opponent_left', { userId });
+        });
     });
 
     return io;

@@ -23,176 +23,174 @@ const typeChart = {
 };
 
 class BattleService {
-    // Calculate type effectiveness
     calculateEffectiveness(attackType, defenderTypes) {
         let effectiveness = 1;
-
-        defenderTypes.forEach(defType => {
-            if (typeChart[attackType] && typeChart[attackType][defType] !== undefined) {
-                effectiveness *= typeChart[attackType][defType];
-            }
-        });
-
+        if(defenderTypes) {
+            defenderTypes.forEach(defType => {
+                if (typeChart[attackType] && typeChart[attackType][defType] !== undefined) {
+                    effectiveness *= typeChart[attackType][defType];
+                }
+            });
+        }
         return effectiveness;
     }
 
-    // Calculate damage
     calculateDamage(attacker, defender, move, moveType) {
-        const attack = attacker.stats.attack || attacker.stats['special-attack'];
-        const defense = defender.stats.defense || defender.stats['special-defense'];
+        let attack = attacker.stats.attack || attacker.stats['special-attack'] || 50;
+        let defense = defender.stats.defense || defender.stats['special-defense'] || 50;
         const level = 50; 
-        const power = 60; 
+        const power = 60; // Simplified flat power
 
-        // STAB (Same Type Attack Bonus)
-        const stab = attacker.types.includes(moveType) ? 1.5 : 1;
+        const stab = (attacker.types && attacker.types.includes(moveType)) ? 1.5 : 1;
+        const effectiveness = this.calculateEffectiveness(moveType, defender.types || []);
 
-        // Type effectiveness
-        const effectiveness = this.calculateEffectiveness(moveType, defender.types);
-
-        // Damage formula 
         const baseDamage = ((((2 * level / 5) + 2) * power * (attack / defense)) / 50) + 2;
         const damage = Math.floor(baseDamage * stab * effectiveness * (Math.random() * 0.15 + 0.85));
 
         return { damage, effectiveness };
     }
 
-    // Simulate a turn
-    simulateTurn(attacker, defender, attackerName, defenderName, turnNumber) {
-        const moveIndex = Math.floor(Math.random() * Math.min(attacker.moves.length, 4));
-        const moveName = attacker.moves[moveIndex] || 'tackle';
-        const moveType = attacker.types[0]; 
+    async registerMoveAction(battleId, userId, move) {
+        const battle = await Battle.findById(battleId).populate('challenger').populate('opponent');
+        if (!battle) throw new Error('Battle not found');
 
-        const { damage, effectiveness } = this.calculateDamage(attacker, defender, moveName, moveType);
+        if (battle.status === 'completed' || battle.status === 'cancelled') {
+            throw new Error('Battle is already over');
+        }
 
-        defender.currentHp = Math.max(0, defender.currentHp - damage);
+        const isChallenger = battle.challengerId.toString() === userId.toString();
+        const isOpponent = battle.opponentId.toString() === userId.toString();
 
-        let effectivenessText = '';
-        if (effectiveness > 1) effectivenessText = "It's super effective!";
-        else if (effectiveness < 1 && effectiveness > 0) effectivenessText = "It's not very effective...";
-        else if (effectiveness === 0) effectivenessText = "It doesn't affect the opponent!";
+        if (!isChallenger && !isOpponent) throw new Error('Usuario no autorizado para esta batalla');
 
-        return {
-            turn: turnNumber,
-            attacker: attackerName,
-            defender: defenderName,
-            move: moveName,
-            damage,
-            effectiveness,
-            message: `${attackerName}'s ${attacker.name} used ${moveName}! ${effectivenessText} Dealt ${damage} damage.`
-        };
+        if (isChallenger) battle.challengerMove = move;
+        if (isOpponent) battle.opponentMove = move;
+
+        if (battle.status === 'pending') {
+            battle.status = 'active';
+            
+            // Initialization: Set full HP
+            battle.challengerTeam.forEach(p => { if(!p.currentHp) p.currentHp = p.stats.hp || 100; });
+            battle.opponentTeam.forEach(p => { if(!p.currentHp) p.currentHp = p.stats.hp || 100; });
+            battle.markModified('challengerTeam');
+            battle.markModified('opponentTeam');
+        }
+
+        if (battle.challengerMove && battle.opponentMove) {
+            await this.executeTurn(battle);
+            return { turnExecuted: true, battle };
+        } else {
+            await battle.save();
+            return { turnExecuted: false };
+        }
     }
 
-    // Simulate full battle
-    async simulateBattle(battleId) {
-        const battle = await Battle.findByPk(battleId, {
-            include: [
-                { model: User, as: 'challenger', attributes: ['email', 'name'] },
-                { model: User, as: 'opponent', attributes: ['email', 'name'] }
-            ]
-        });
+    async executeTurn(battle) {
+        const chPokemon = battle.challengerTeam[battle.activePokemonChallenger];
+        const opPokemon = battle.opponentTeam[battle.activePokemonOpponent];
 
-        if (!battle) {
-            throw new Error('Battle not found');
-        }
+        const chMove = battle.challengerMove;
+        const opMove = battle.opponentMove;
 
-        if (battle.status !== 'pending') {
-            throw new Error('Battle already started or completed');
-        }
+        // Reset
+        battle.challengerMove = null;
+        battle.opponentMove = null;
 
-        // Initialize HP for all Pokemon
-        battle.challengerTeam.forEach(pokemon => {
-            pokemon.currentHp = pokemon.stats.hp;
-        });
+        const chSpeed = chPokemon.stats.speed || 50;
+        const opSpeed = opPokemon.stats.speed || 50;
+        
+        const chName = battle.challenger ? (battle.challenger.name || "Retador") : 'Retador';
+        const opName = battle.opponent ? (battle.opponent.name || "Oponente") : 'Oponente';
+        
+        const turnLogs = [];
+        
+        const executeAttack = (attackerPk, defenderPk, attackerTrainer, defenderTrainer, moveName) => {
+            if (attackerPk.currentHp <= 0 || defenderPk.currentHp <= 0) return;
+            
+            // Fallback move type to the pokemon's primary type
+            const moveType = (attackerPk.types && attackerPk.types.length > 0) ? attackerPk.types[0] : 'normal'; 
+            
+            const { damage, effectiveness } = this.calculateDamage(attackerPk, defenderPk, moveName, moveType);
+            defenderPk.currentHp = Math.max(0, defenderPk.currentHp - damage);
 
-        battle.opponentTeam.forEach(pokemon => {
-            pokemon.currentHp = pokemon.stats.hp;
-        });
+            let effectivenessText = '';
+            if (effectiveness > 1) effectivenessText = "¡Es súper efectivo!";
+            else if (effectiveness < 1 && effectiveness > 0) effectivenessText = "No es muy efectivo...";
+            else if (effectiveness === 0) effectivenessText = "¡No afecta al oponente!";
 
-        battle.status = 'active';
-        battle.battleLog = [];
+            turnLogs.push({
+                turn: battle.currentTurn,
+                attacker: attackerTrainer,
+                defender: defenderTrainer,
+                move: moveName,
+                damage,
+                effectiveness,
+                message: `${attackerTrainer}: ¡${attackerPk.name.toUpperCase()} usó ${moveName.toUpperCase()}! ${effectivenessText}`
+            });
+        };
 
-        let turn = 1;
-        let challengerIndex = 0;
-        let opponentIndex = 0;
-
-        // Battle loop
-        while (challengerIndex < battle.challengerTeam.length &&
-            opponentIndex < battle.opponentTeam.length) {
-
-            const challengerPokemon = battle.challengerTeam[challengerIndex];
-            const opponentPokemon = battle.opponentTeam[opponentIndex];
-
-            const challengerSpeed = challengerPokemon.stats.speed;
-            const opponentSpeed = opponentPokemon.stats.speed;
-
-            const chName = battle.challenger.name || battle.challenger.email;
-            const opName = battle.opponent.name || battle.opponent.email;
-
-            if (challengerSpeed >= opponentSpeed) {
-                const log1 = this.simulateTurn(challengerPokemon, opponentPokemon, chName, opName, turn);
-                battle.battleLog.push(log1);
-
-                if (opponentPokemon.currentHp <= 0) {
-                    battle.battleLog.push({ turn, message: `${opName}'s ${opponentPokemon.name} fainted!` });
-                    opponentIndex++;
-                } else {
-                    const log2 = this.simulateTurn(opponentPokemon, challengerPokemon, opName, chName, turn);
-                    battle.battleLog.push(log2);
-
-                    if (challengerPokemon.currentHp <= 0) {
-                        battle.battleLog.push({ turn, message: `${chName}'s ${challengerPokemon.name} fainted!` });
-                        challengerIndex++;
-                    }
-                }
-            } else {
-                const log1 = this.simulateTurn(opponentPokemon, challengerPokemon, opName, chName, turn);
-                battle.battleLog.push(log1);
-
-                if (challengerPokemon.currentHp <= 0) {
-                    battle.battleLog.push({ turn, message: `${chName}'s ${challengerPokemon.name} fainted!` });
-                    challengerIndex++;
-                } else {
-                    const log2 = this.simulateTurn(challengerPokemon, opponentPokemon, chName, opName, turn);
-                    battle.battleLog.push(log2);
-
-                    if (opponentPokemon.currentHp <= 0) {
-                        battle.battleLog.push({ turn, message: `${opName}'s ${opponentPokemon.name} fainted!` });
-                        opponentIndex++;
-                    }
-                }
-            }
-            turn++;
-        }
-
-        // Determine winner
-        if (challengerIndex >= battle.challengerTeam.length) {
-            battle.winnerId = battle.opponentId;
-            battle.battleLog.push({ turn, message: `${opName} wins the battle!` });
+        if (chSpeed >= opSpeed) {
+            executeAttack(chPokemon, opPokemon, chName, opName, chMove);
+            executeAttack(opPokemon, chPokemon, opName, chName, opMove);
         } else {
-            battle.winnerId = battle.challengerId;
-            battle.battleLog.push({ turn, message: `${chName} wins the battle!` });
+            executeAttack(opPokemon, chPokemon, opName, chName, opMove);
+            executeAttack(chPokemon, opPokemon, chName, opName, chMove);
         }
 
-        battle.status = 'completed';
-        battle.completedAt = new Date();
+        let chFainted = false;
+        let opFainted = false;
 
-        // Use changed() to help Sequelize with JSONB if needed, though direct save usually works
-        await Battle.update({
-            status: battle.status,
-            battleLog: battle.battleLog,
-            challengerTeam: battle.challengerTeam,
-            opponentTeam: battle.opponentTeam,
-            winnerId: battle.winnerId,
-            completedAt: battle.completedAt
-        }, { where: { id: battle.id } });
+        if (chPokemon.currentHp <= 0) {
+            turnLogs.push({ turn: battle.currentTurn, message: `¡El ${chPokemon.name.toUpperCase()} de ${chName} se debilitó!` });
+            const nextIdx = battle.challengerTeam.findIndex((p, i) => i > battle.activePokemonChallenger && p.currentHp > 0);
+            if (nextIdx !== -1) {
+                battle.activePokemonChallenger = nextIdx;
+                turnLogs.push({ turn: battle.currentTurn, message: `${chName} sacó a ${battle.challengerTeam[nextIdx].name.toUpperCase()}.` });
+            } else {
+                chFainted = true;
+            }
+        }
 
-        return await Battle.findByPk(battle.id, {
-            include: [
-                { model: User, as: 'challenger', attributes: ['email', 'name'] },
-                { model: User, as: 'opponent', attributes: ['email', 'name'] },
-                { model: User, as: 'winner', attributes: ['email', 'name'] }
-            ]
-        });
+        if (opPokemon.currentHp <= 0) {
+            turnLogs.push({ turn: battle.currentTurn, message: `¡El ${opPokemon.name.toUpperCase()} de ${opName} se debilitó!` });
+            const nextIdx = battle.opponentTeam.findIndex((p, i) => i > battle.activePokemonOpponent && p.currentHp > 0);
+            if (nextIdx !== -1) {
+                battle.activePokemonOpponent = nextIdx;
+                turnLogs.push({ turn: battle.currentTurn, message: `${opName} sacó a ${battle.opponentTeam[nextIdx].name.toUpperCase()}.` });
+            } else {
+                opFainted = true;
+            }
+        }
+
+        if (chFainted && opFainted) {
+            battle.status = 'completed';
+            battle.winnerId = null; // tie
+            turnLogs.push({ turn: battle.currentTurn, message: `¡La batalla terminó en empate!` });
+            battle.completedAt = new Date();
+        } else if (chFainted) {
+            battle.status = 'completed';
+            battle.winnerId = battle.opponentId;
+            turnLogs.push({ turn: battle.currentTurn, message: `¡${opName} gana la batalla!` });
+            battle.completedAt = new Date();
+        } else if (opFainted) {
+            battle.status = 'completed';
+            battle.winnerId = battle.challengerId;
+            turnLogs.push({ turn: battle.currentTurn, message: `¡${chName} gana la batalla!` });
+            battle.completedAt = new Date();
+        }
+
+        battle.battleLog = [...(battle.battleLog || []), ...turnLogs];
+        battle.currentTurn += 1;
+
+        battle.markModified('challengerTeam');
+        battle.markModified('opponentTeam');
+
+        await battle.save();
+    }
+
+    // Deprecated simulation endpoint logic. Returns an error as it's replaced by real-time PvP.
+    async simulateBattle(battleId) {
+        throw new Error('Offline battle simulation replaced by interactive WebSockets PvP.');
     }
 }
 

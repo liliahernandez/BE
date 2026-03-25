@@ -32,6 +32,26 @@ const battleSchema = new mongoose.Schema({
         type: [Object],
         default: []
     },
+    currentTurn: {
+        type: Number,
+        default: 1
+    },
+    activePokemonChallenger: {
+        type: Number,
+        default: 0
+    },
+    activePokemonOpponent: {
+        type: Number,
+        default: 0
+    },
+    challengerMove: {
+        type: String,
+        default: null
+    },
+    opponentMove: {
+        type: String,
+        default: null
+    },
     completedAt: {
         type: Date
     }
