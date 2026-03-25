@@ -36,7 +36,13 @@ const battleSchema = new mongoose.Schema({
         type: Date
     }
 }, {
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 });
+
+battleSchema.virtual('challenger', { ref: 'User', localField: 'challengerId', foreignField: '_id', justOne: true });
+battleSchema.virtual('opponent', { ref: 'User', localField: 'opponentId', foreignField: '_id', justOne: true });
+battleSchema.virtual('winner', { ref: 'User', localField: 'winnerId', foreignField: '_id', justOne: true });
 
 module.exports = mongoose.model('Battle', battleSchema);

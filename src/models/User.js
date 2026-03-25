@@ -26,7 +26,8 @@ const userSchema = new mongoose.Schema({
         unique: true
     },
     favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Favorite' }],
-    teams: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Team' }]
+    teams: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Team' }],
+    friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 }, {
     timestamps: true
 });
