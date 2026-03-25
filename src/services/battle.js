@@ -36,8 +36,8 @@ class BattleService {
     }
 
     calculateDamage(attacker, defender, move, moveType) {
-        let attack = attacker.stats.attack || attacker.stats['special-attack'] || 50;
-        let defense = defender.stats.defense || defender.stats['special-defense'] || 50;
+        let attack = attacker.stats?.attack || attacker.stats?.['special-attack'] || 50;
+        let defense = defender.stats?.defense || defender.stats?.['special-defense'] || 50;
         const level = 50; 
         const power = 60; // Simplified flat power
 
@@ -70,8 +70,8 @@ class BattleService {
             battle.status = 'active';
             
             // Initialization: Set full HP
-            battle.challengerTeam.forEach(p => { if(!p.currentHp) p.currentHp = p.stats.hp || 100; });
-            battle.opponentTeam.forEach(p => { if(!p.currentHp) p.currentHp = p.stats.hp || 100; });
+            battle.challengerTeam.forEach(p => { if(!p.currentHp) p.currentHp = p.stats?.hp || 100; });
+            battle.opponentTeam.forEach(p => { if(!p.currentHp) p.currentHp = p.stats?.hp || 100; });
             battle.markModified('challengerTeam');
             battle.markModified('opponentTeam');
         }
@@ -96,8 +96,8 @@ class BattleService {
         battle.challengerMove = null;
         battle.opponentMove = null;
 
-        const chSpeed = chPokemon.stats.speed || 50;
-        const opSpeed = opPokemon.stats.speed || 50;
+        const chSpeed = chPokemon.stats?.speed || 50;
+        const opSpeed = opPokemon.stats?.speed || 50;
         
         const chName = battle.challenger ? (battle.challenger.name || "Retador") : 'Retador';
         const opName = battle.opponent ? (battle.opponent.name || "Oponente") : 'Oponente';
