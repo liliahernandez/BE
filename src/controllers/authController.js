@@ -89,6 +89,20 @@ exports.addFriend = async (req, res) => {
                 await Friendship.create({ userId: user._id, friendId: friend._id });
                 await Friendship.create({ userId: friend._id, friendId: user._id });
                 await existingInverseRequest.deleteOne();
+                
+                const payload = {
+                    message: '¡Ahora son amigos!',
+                    friendId: user._id.toString(),
+                    friendName: user.name,
+                    otherId: friend._id.toString(),
+                    otherName: friend.name
+                };
+
+                setTimeout(() => {
+                    notifyUser(friend._id.toString(), 'friendship_updated', payload);
+                    notifyUser(user._id.toString(), 'friendship_updated', payload);
+                }, 500);
+
                 return res.json({ message: '¡Amistad establecida automáticamente!', isMutual: true });
             }
 
@@ -119,6 +133,21 @@ exports.addFriend = async (req, res) => {
                     { senderId: friend._id, receiverId: user._id }
                 ]
             });
+
+            const payload = {
+                message: '¡Ahora son amigos!',
+                friendId: user._id.toString(),
+                friendName: user.name,
+                otherId: friend._id.toString(),
+                otherName: friend.name
+            };
+
+            setTimeout(() => {
+                notifyUser(friend._id.toString(), 'friendship_updated', payload);
+                notifyUser(user._id.toString(), 'friendship_updated', payload);
+                notifyUser(friend._id.toString(), 'friend_request_accepted', payload);
+                notifyUser(user._id.toString(), 'friend_request_accepted', payload);
+            }, 500);
 
             return res.json({ message: 'Amigo añadido exitosamente', friend: { id: friend._id, name: friend.name } });
         }
