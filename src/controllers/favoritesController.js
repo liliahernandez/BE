@@ -7,7 +7,7 @@ exports.getFavorites = async (req, res) => {
         res.json({ favorites });
     } catch (error) {
         console.error('Get favorites error:', error);
-        res.status(500).json({ error: 'Error obteniendo favoritos' });
+        res.status(500).json({ error: error.message || 'Error obteniendo favoritos' });
     }
 };
 
@@ -32,7 +32,7 @@ exports.addFavorite = async (req, res) => {
         res.json({ message: 'Añadido a favoritos', favorites });
     } catch (error) {
         console.error('Add favorite error:', error);
-        res.status(500).json({ error: 'Error añadiendo favorito' });
+        res.status(500).json({ error: error.message || 'Error añadiendo favorito' });
     }
 };
 
