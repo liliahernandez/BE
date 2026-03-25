@@ -82,10 +82,8 @@ exports.addFriend = async (req, res) => {
             const existingInverseRequest = await FriendRequest.findOne({ senderId: friend._id, receiverId: user._id });
 
             if (existingInverseRequest) {
-                user.friends.push(friend._id);
-                friend.friends.push(user._id);
-                await user.save();
-                await friend.save();
+                await User.updateOne({ _id: user._id }, { $addToSet: { friends: friend._id } });
+                await User.updateOne({ _id: friend._id }, { $addToSet: { friends: user._id } });
                 await Friendship.create({ userId: user._id, friendId: friend._id });
                 await Friendship.create({ userId: friend._id, friendId: user._id });
                 await existingInverseRequest.deleteOne();
@@ -120,10 +118,8 @@ exports.addFriend = async (req, res) => {
             const friend = await User.findById(friendId);
             if (!friend) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-            user.friends.push(friend._id);
-            friend.friends.push(user._id);
-            await user.save();
-            await friend.save();
+            await User.updateOne({ _id: user._id }, { $addToSet: { friends: friend._id } });
+            await User.updateOne({ _id: friend._id }, { $addToSet: { friends: user._id } });
             await Friendship.create({ userId: user._id, friendId: friend._id });
             await Friendship.create({ userId: friend._id, friendId: user._id });
 
