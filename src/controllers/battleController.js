@@ -26,8 +26,8 @@ exports.createBattle = async (req, res) => {
         const battle = await Battle.create({
             challengerId: req.userId,
             opponentId: opponentId,
-            challengerTeam: challengerTeamModel.pokemon,
-            opponentTeam: opponentTeamModel.pokemon,
+            challengerTeam: challengerTeamModel.pokemon.map(p => p.toObject ? p.toObject() : p),
+            opponentTeam: opponentTeamModel.pokemon.map(p => p.toObject ? p.toObject() : p),
             status: 'pending'
         });
 

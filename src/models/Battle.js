@@ -21,11 +21,11 @@ const battleSchema = new mongoose.Schema({
         default: 'pending'
     },
     challengerTeam: {
-        type: Object,
+        type: [Object],
         required: true
     },
     opponentTeam: {
-        type: Object,
+        type: [Object],
         required: true
     },
     battleLog: {
