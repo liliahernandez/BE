@@ -79,40 +79,34 @@ exports.addFriend = async (req, res) => {
                 return res.status(400).json({ error: 'Ya son amigos' });
             }
 
-            const existingInverseRequest = await FriendRequest.findOne({ senderId: friend._id, receiverId: user._id });
+            // AUTO-ACEPTAR AMISTAD INSTANTANEAMENTE
+            await User.updateOne({ _id: user._id }, { $addToSet: { friends: friend._id } });
+            await User.updateOne({ _id: friend._id }, { $addToSet: { friends: user._id } });
+            await Friendship.create({ userId: user._id, friendId: friend._id });
+            await Friendship.create({ userId: friend._id, friendId: user._id });
 
-            if (existingInverseRequest) {
-                await User.updateOne({ _id: user._id }, { $addToSet: { friends: friend._id } });
-                await User.updateOne({ _id: friend._id }, { $addToSet: { friends: user._id } });
-                await Friendship.create({ userId: user._id, friendId: friend._id });
-                await Friendship.create({ userId: friend._id, friendId: user._id });
-                await existingInverseRequest.deleteOne();
-                
-                const payload = {
-                    message: '¡Ahora son amigos!',
-                    friendId: user._id.toString(),
-                    friendName: user.name,
-                    otherId: friend._id.toString(),
-                    otherName: friend.name
-                };
+            const payload = {
+                message: '¡Ahora son amigos!',
+                friendId: user._id.toString(),
+                friendName: user.name,
+                otherId: friend._id.toString(),
+                otherName: friend.name
+            };
 
-                setTimeout(() => {
-                    notifyUser(friend._id.toString(), 'friendship_updated', payload);
-                    notifyUser(user._id.toString(), 'friendship_updated', payload);
-                }, 500);
+            setTimeout(() => {
+                notifyUser(friend._id.toString(), 'friendship_updated', payload);
+                notifyUser(user._id.toString(), 'friendship_updated', payload);
+                notifyUser(friend._id.toString(), 'friend_request_accepted', payload);
+                notifyUser(user._id.toString(), 'friend_request_accepted', payload);
+            }, 500);
 
-                return res.json({ message: '¡Amistad establecida automáticamente!', isMutual: true });
-            }
-
-            notifyUser(friend._id, 'friend_request', { requesterId: user._id, requesterName: user.name });
             sendPushToUser(friend._id, {
-                title: 'Solicitud de Amistad 🤝', body: `${user.name} quiere ser tu amigo.`,
-                data: { action: 'accept-friend', requesterId: user._id }
+                title: '¡Nuevo Amigo! 🤝', 
+                body: `${user.name} usó tu código y te ha agregado. ¡Ya son amigos!`,
+                data: { action: 'view-friends' }
             });
 
-            const exists = await FriendRequest.findOne({ senderId: user._id, receiverId: friend._id });
-            if(!exists) await FriendRequest.create({ senderId: user._id, receiverId: friend._id, status: 'pending' });
-            return res.json({ message: 'Solicitud de amistad enviada' });
+            return res.json({ message: '¡Amistad establecida automáticamente!', isMutual: true, friend: { id: friend._id, name: friend.name } });
         } 
         if (action === 'accept_request') {
             const friend = await User.findById(friendId);
