@@ -16,16 +16,22 @@ exports.addFavorite = async (req, res) => {
         const { pokemonId } = req.body;
         if (!pokemonId) return res.status(400).json({ error: 'ID de Pokemon requerido' });
 
-        const existing = await Favorite.findOne({ userId: req.userId, pokemonId });
-        if (existing) return res.status(400).json({ error: 'Pokemon ya en favoritos' });
-
         const pokemon = await pokeAPIService.getPokemonDetails(pokemonId);
+        if (!pokemon) return res.status(404).json({ error: 'Pokemon no encontrado en PokeAPI' });
+
+        const sprite = pokemon.sprites?.other?.['official-artwork']?.front_default || pokemon.sprites?.front_default || '';
+        
+        const existing = await Favorite.findOne({ userId: req.userId, pokemonId });
+        if (existing) {
+            return res.status(400).json({ error: 'Pokemon ya en favoritos' });
+        }
+
         await Favorite.create({
             userId: req.userId,
             pokemonId: pokemon.id,
             name: pokemon.name,
-            sprite: pokemon.sprites.other['official-artwork'].front_default || pokemon.sprites.front_default,
-            types: pokemon.types.map(t => t.type.name)
+            sprite: sprite,
+            types: pokemon.types ? pokemon.types.map(t => t.type.name) : []
         });
 
         const favorites = await Favorite.find({ userId: req.userId });
