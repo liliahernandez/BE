@@ -121,7 +121,7 @@ class PokeAPIService {
             }
         };
 
-        traverse(chain.chain);
+        traverse(chain);
         return evolutionLine;
     }
 }
