@@ -71,8 +71,13 @@ exports.getBattle = async (req, res) => {
 
         if (!battle) return res.status(404).json({ error: 'Batalla no encontrada' });
 
-        if (battle.challengerId.toString() !== req.userId && battle.opponentId.toString() !== req.userId) {
-            return res.status(403).json({ error: 'No autorizado para ver esta batalla' });
+        const chId = battle.challengerId ? battle.challengerId.toString() : '';
+        const opId = battle.opponentId ? battle.opponentId.toString() : '';
+        const reqUser = String(req.userId);
+
+        if (chId !== reqUser && opId !== reqUser) {
+            console.log(`403 Triggered in getBattle. chId: ${chId}, opId: ${opId}, reqUser: ${reqUser}`);
+            return res.status(403).json({ error: 'No autorizado para ver esta batalla', debug: { chId, opId, reqUser }});
         }
         res.json({ battle });
     } catch (error) {
