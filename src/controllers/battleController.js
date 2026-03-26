@@ -109,7 +109,11 @@ exports.cancelBattle = async (req, res) => {
         const battle = await Battle.findById(req.params.battleId);
         if (!battle) return res.status(404).json({ error: 'Batalla no encontrada' });
         
-        if (battle.challengerId.toString() !== req.userId && battle.opponentId.toString() !== req.userId) {
+        const reqUser = String(req.userId);
+        const chId = battle.challengerId ? battle.challengerId.toString() : '';
+        const opId = battle.opponentId ? battle.opponentId.toString() : '';
+
+        if (chId !== reqUser && opId !== reqUser) {
             return res.status(403).json({ error: 'Solo los participantes pueden eliminar la batalla' });
         }
 
