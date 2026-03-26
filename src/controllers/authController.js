@@ -166,16 +166,20 @@ exports.removeFriend = async (req, res) => {
 
         if (!friend) return res.status(404).json({ error: 'Amigo no encontrado' });
 
-        user.friends = user.friends.filter(id => id.toString() !== friendId);
-        friend.friends = friend.friends.filter(id => id.toString() !== req.userId);
-        await user.save();
-        await friend.save();
+        // Use atomic updates to prevent Mongoose validation errors during .save()
+        await User.updateOne({ _id: user._id }, { $pull: { friends: friend._id } });
+        await User.updateOne({ _id: friend._id }, { $pull: { friends: user._id } });
 
         await Friendship.deleteMany({
             $or: [
                 { userId: user._id, friendId: friend._id },
                 { userId: friend._id, friendId: user._id }
             ]
+        });
+
+        // Notify the friend in real-time so their list updates instantly without refreshing
+        notifyUser(friend._id.toString(), 'friendship_updated', {
+            message: 'Un amigo te ha eliminado'
         });
 
         res.json({ message: 'Amigo eliminado exitosamente' });
