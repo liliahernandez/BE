@@ -105,8 +105,8 @@ class BattleService {
         const chSpeed = chPokemon.stats?.speed || 50;
         const opSpeed = opPokemon.stats?.speed || 50;
         
-        const chName = battle.challenger ? (battle.challenger.name || "Retador") : 'Retador';
-        const opName = battle.opponent ? (battle.opponent.name || "Oponente") : 'Oponente';
+        const chName = battle.challenger ? (battle.challenger.nickname || battle.challenger.name || "Retador") : 'Retador';
+        const opName = battle.opponent ? (battle.opponent.nickname || battle.opponent.name || "Oponente") : 'Oponente';
         
         const turnLogs = [];
         

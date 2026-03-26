@@ -35,13 +35,13 @@ exports.createBattle = async (req, res) => {
             battleId: battle._id,
             challengerId: challenger._id,
             challengerEmail: challenger.email,
-            challengerName: challenger.name,
+            challengerName: challenger.nickname || challenger.name,
             challengerFriendCode: challenger.friendCode
         });
 
         sendPushToUser(opponentId, {
             title: '¡Reto de Batalla! ⚔️',
-            body: `${challenger.name || challenger.email} te ha retado a una batalla Pokémon.`,
+            body: `${challenger.nickname || challenger.name || challenger.email} te ha retado a una batalla Pokémon.`,
             data: { action: 'accept-battle', battleId: battle._id, challengerId: challenger._id }
         });
 
@@ -65,9 +65,9 @@ exports.startBattle = async (req, res) => {
 exports.getBattle = async (req, res) => {
     try {
         const battle = await Battle.findById(req.params.battleId)
-            .populate('challenger', 'email name friendCode')
-            .populate('opponent', 'email name friendCode')
-            .populate('winner', 'email name friendCode');
+            .populate('challenger', 'email name nickname friendCode')
+            .populate('opponent', 'email name nickname friendCode')
+            .populate('winner', 'email name nickname friendCode');
 
         if (!battle) return res.status(404).json({ error: 'Batalla no encontrada' });
 
@@ -91,9 +91,9 @@ exports.getUserBattles = async (req, res) => {
         const battles = await Battle.find({
             $or: [{ challengerId: req.userId }, { opponentId: req.userId }]
         })
-        .populate('challenger', 'email name friendCode')
-        .populate('opponent', 'email name friendCode')
-        .populate('winner', 'email name friendCode')
+        .populate('challenger', 'email name nickname friendCode')
+        .populate('opponent', 'email name nickname friendCode')
+        .populate('winner', 'email name nickname friendCode')
         .sort({ createdAt: -1 })
         .limit(20);
 

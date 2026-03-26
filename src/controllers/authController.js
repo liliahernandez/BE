@@ -19,7 +19,13 @@ exports.register = async (req, res) => {
         res.status(201).json({
             message: 'Usuario registrado exitosamente',
             token,
-            user: { id: user._id, email: user.email, name: user.name, friendCode: user.friendCode }
+            user: { 
+                id: user._id, 
+                email: user.email, 
+                name: user.name, 
+                nickname: user.nickname, 
+                friendCode: user.friendCode 
+            }
         });
     } catch (error) {
         console.error('Registration error:', error);
@@ -43,7 +49,13 @@ exports.login = async (req, res) => {
         res.json({
             message: 'Inicio de sesión exitoso',
             token,
-            user: { id: user._id, email: user.email, name: user.name, friendCode: user.friendCode }
+            user: { 
+                id: user._id, 
+                email: user.email, 
+                name: user.name, 
+                nickname: user.nickname, 
+                friendCode: user.friendCode 
+            }
         });
     } catch (error) {
         console.error('Login error:', error);
