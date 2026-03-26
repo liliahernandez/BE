@@ -51,20 +51,26 @@ class BattleService {
     }
 
     async registerMoveAction(battleId, userId, move) {
-        const battle = await Battle.findById(battleId).populate('challenger').populate('opponent');
-        if (!battle) throw new Error('Battle not found');
+        const initialBattle = await Battle.findById(battleId);
+        if (!initialBattle) throw new Error('Battle not found');
 
-        if (battle.status === 'completed' || battle.status === 'cancelled') {
+        if (initialBattle.status === 'completed' || initialBattle.status === 'cancelled') {
             throw new Error('Battle is already over');
         }
 
-        const isChallenger = battle.challengerId.toString() === userId.toString();
-        const isOpponent = battle.opponentId.toString() === userId.toString();
+        const isChallenger = initialBattle.challengerId.toString() === userId.toString();
+        const isOpponent = initialBattle.opponentId.toString() === userId.toString();
 
         if (!isChallenger && !isOpponent) throw new Error('Usuario no autorizado para esta batalla');
 
-        if (isChallenger) battle.challengerMove = move;
-        if (isOpponent) battle.opponentMove = move;
+        const updateField = isChallenger ? { challengerMove: move } : { opponentMove: move };
+
+        // Atomic update guarantees no race condition if players click at exact same millisecond
+        const battle = await Battle.findByIdAndUpdate(
+            battleId,
+            { $set: updateField },
+            { new: true }
+        ).populate('challenger').populate('opponent');
 
         if (battle.status === 'pending') {
             battle.status = 'active';
@@ -74,13 +80,13 @@ class BattleService {
             battle.opponentTeam.forEach(p => { if(!p.currentHp) p.currentHp = p.stats?.hp || 100; });
             battle.markModified('challengerTeam');
             battle.markModified('opponentTeam');
+            await battle.save(); // Just to persist initialization
         }
 
         if (battle.challengerMove && battle.opponentMove) {
             await this.executeTurn(battle);
             return { turnExecuted: true, battle };
         } else {
-            await battle.save();
             return { turnExecuted: false };
         }
     }
