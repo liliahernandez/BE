@@ -108,14 +108,15 @@ exports.cancelBattle = async (req, res) => {
     try {
         const battle = await Battle.findById(req.params.battleId);
         if (!battle) return res.status(404).json({ error: 'Batalla no encontrada' });
-        if (battle.challengerId.toString() !== req.userId) return res.status(403).json({ error: 'Solo el retador puede cancelar' });
-        if (battle.status !== 'pending') return res.status(400).json({ error: 'Solo se pueden cancelar batallas pendientes' });
+        
+        if (battle.challengerId.toString() !== req.userId && battle.opponentId.toString() !== req.userId) {
+            return res.status(403).json({ error: 'Solo los participantes pueden eliminar la batalla' });
+        }
 
-        battle.status = 'cancelled';
-        await battle.save();
-        res.json({ message: 'Batalla cancelada exitosamente' });
+        await Battle.findByIdAndDelete(req.params.battleId);
+        res.json({ message: 'Batalla eliminada exitosamente' });
     } catch (error) {
-        console.error('Cancel battle error:', error);
-        res.status(500).json({ error: 'Error cancelando batalla' });
+        console.error('Delete battle error:', error);
+        res.status(500).json({ error: 'Error eliminando batalla' });
     }
 };
