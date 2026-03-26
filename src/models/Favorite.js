@@ -19,6 +19,12 @@ const favoriteSchema = new mongoose.Schema({
     },
     types: {
         type: [String]
+    },
+    userName: {
+        type: String
+    },
+    userNickname: {
+        type: String
     }
 }, {
     timestamps: true

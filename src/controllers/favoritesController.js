@@ -1,4 +1,4 @@
-const { Favorite, Team, TeamPokemon } = require('../models');
+const { Favorite, Team, TeamPokemon, User } = require('../models');
 const pokeAPIService = require('../services/pokeapi');
 
 exports.getFavorites = async (req, res) => {
@@ -16,6 +16,9 @@ exports.addFavorite = async (req, res) => {
         const { pokemonId } = req.body;
         if (!pokemonId) return res.status(400).json({ error: 'ID de Pokemon requerido' });
 
+        const user = await User.findById(req.userId);
+        if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
         const pokemon = await pokeAPIService.getPokemonDetails(pokemonId);
         if (!pokemon) return res.status(404).json({ error: 'Pokemon no encontrado en PokeAPI' });
 
@@ -28,6 +31,8 @@ exports.addFavorite = async (req, res) => {
 
         await Favorite.create({
             userId: req.userId,
+            userName: user.name,
+            userNickname: user.nickname,
             pokemonId: pokemon.id,
             name: pokemon.name,
             sprite: sprite,
