@@ -14,7 +14,7 @@ exports.register = async (req, res) => {
         const friendCode = await User.generateFriendCode();
         const user = await User.create({ email, password, name, nickname, friendCode });
 
-        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '365d' });
 
         res.status(201).json({
             message: 'Usuario registrado exitosamente',
