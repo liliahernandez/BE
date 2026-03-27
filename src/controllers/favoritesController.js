@@ -1,10 +1,10 @@
-const { User } = require('../models');
+const { Favorite, Team, User } = require('../models');
 const pokeAPIService = require('../services/pokeapi');
 
 exports.getFavorites = async (req, res) => {
     try {
-        const user = await User.findById(req.userId);
-        res.json({ favorites: user?.favorites || [] });
+        const doc = await Favorite.findOne({ userId: req.userId });
+        res.json({ favorites: doc?.favorites || [] });
     } catch (error) {
         console.error('Get favorites error:', error);
         res.status(500).json({ error: error.message || 'Error obteniendo favoritos' });
@@ -24,20 +24,24 @@ exports.addFavorite = async (req, res) => {
 
         const sprite = pokemon.sprites?.other?.['official-artwork']?.front_default || pokemon.sprites?.front_default || '';
         
-        const alreadyFavorite = user.favorites.some(f => f.pokemonId === pokemon.id);
-        if (alreadyFavorite) {
-            return res.status(400).json({ error: 'Pokemon ya en favoritos' });
-        }
-
-        user.favorites.push({
+        const newFav = {
             pokemonId: pokemon.id,
             name: pokemon.name,
             sprite: sprite,
             types: pokemon.types ? pokemon.types.map(t => t.type.name) : []
-        });
+        };
 
-        await user.save();
-        res.json({ message: 'Añadido a favoritos', favorites: user.favorites });
+        // Bucket pattern: One document per user in the favorites collection
+        const doc = await Favorite.findOneAndUpdate(
+            { userId: req.userId },
+            { 
+                $set: { userName: user.name, userNickname: user.nickname },
+                $addToSet: { favorites: newFav } 
+            },
+            { upsert: true, new: true }
+        );
+
+        res.json({ message: 'Añadido a favoritos', favorites: doc.favorites });
     } catch (error) {
         console.error('Add favorite error:', error);
         res.status(500).json({ error: error.message || 'Error añadiendo favorito' });
@@ -47,13 +51,13 @@ exports.addFavorite = async (req, res) => {
 exports.removeFavorite = async (req, res) => {
     try {
         const { pokemonId } = req.params;
-        const user = await User.findById(req.userId);
-        if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-
-        user.favorites = user.favorites.filter(f => f.pokemonId !== Number(pokemonId));
-        await user.save();
+        const doc = await Favorite.findOneAndUpdate(
+            { userId: req.userId },
+            { $pull: { favorites: { pokemonId: Number(pokemonId) } } },
+            { new: true }
+        );
         
-        res.json({ message: 'Eliminado de favoritos', favorites: user.favorites });
+        res.json({ message: 'Eliminado de favoritos', favorites: doc?.favorites || [] });
     } catch (error) {
         console.error('Remove favorite error:', error);
         res.status(500).json({ error: 'Error eliminando favorito' });
@@ -62,8 +66,8 @@ exports.removeFavorite = async (req, res) => {
 
 exports.getTeams = async (req, res) => {
     try {
-        const user = await User.findById(req.userId);
-        res.json({ teams: user?.teams || [] });
+        const doc = await Team.findOne({ userId: req.userId });
+        res.json({ teams: doc?.teams || [] });
     } catch (error) {
         console.error('Get teams error:', error);
         res.status(500).json({ error: 'Error obteniendo equipos' });
@@ -94,10 +98,16 @@ exports.createTeam = async (req, res) => {
             };
         });
 
-        user.teams.push({ name, pokemon: teamPokemon });
-        await user.save();
+        const doc = await Team.findOneAndUpdate(
+            { userId: req.userId },
+            { 
+                $set: { userName: user.name, userNickname: user.nickname },
+                $push: { teams: { name, pokemon: teamPokemon } } 
+            },
+            { upsert: true, new: true }
+        );
 
-        const createdTeam = user.teams[user.teams.length - 1];
+        const createdTeam = doc.teams[doc.teams.length - 1];
         res.json({ message: 'Equipo creado', team: createdTeam });
     } catch (error) {
         console.error('Create team error:', error);
@@ -108,11 +118,11 @@ exports.createTeam = async (req, res) => {
 exports.deleteTeam = async (req, res) => {
     try {
         const { teamId } = req.params;
-        const user = await User.findById(req.userId);
-        if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-
-        user.teams = user.teams.filter(t => t._id.toString() !== teamId);
-        await user.save();
+        const doc = await Team.findOneAndUpdate(
+            { userId: req.userId },
+            { $pull: { teams: { _id: teamId } } },
+            { new: true }
+        );
 
         res.json({ message: 'Equipo eliminado' });
     } catch (error) {
@@ -126,10 +136,10 @@ exports.updateTeam = async (req, res) => {
         const { teamId } = req.params;
         const { name, pokemonIds, pokemon } = req.body;
 
-        const user = await User.findById(req.userId);
-        if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+        const doc = await Team.findOne({ userId: req.userId });
+        if (!doc) return res.status(404).json({ error: 'No se encontraron equipos para este usuario' });
 
-        const team = user.teams.id(teamId);
+        const team = doc.teams.id(teamId);
         if (!team) return res.status(404).json({ error: 'Equipo no encontrado' });
 
         if (name) team.name = name;
@@ -153,7 +163,7 @@ exports.updateTeam = async (req, res) => {
             });
         }
         
-        await user.save();
+        await doc.save();
         res.json({ message: 'Equipo actualizado', team });
     } catch (error) {
         console.error('Update team error:', error);

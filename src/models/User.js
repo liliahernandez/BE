@@ -1,29 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
-const favoriteSchema = new mongoose.Schema({
-    pokemonId: { type: Number, required: true },
-    name: { type: String, required: true },
-    sprite: { type: String },
-    types: { type: [String] },
-    addedAt: { type: Date, default: Date.now }
-});
-
-const teamPokemonSchema = new mongoose.Schema({
-    pokemonId: { type: Number, required: true },
-    name: { type: String, required: true },
-    sprite: { type: String },
-    types: { type: [String] },
-    stats: { type: Object },
-    moves: { type: [String] }
-});
-
-const teamSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    pokemon: [teamPokemonSchema],
-    createdAt: { type: Date, default: Date.now }
-});
-
 const userSchema = new mongoose.Schema({
     email: {
         type: String,
@@ -48,8 +25,6 @@ const userSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
-    favorites: [favoriteSchema],
-    teams: [teamSchema],
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 }, {
     timestamps: true

@@ -1,4 +1,4 @@
-const { Battle, User } = require('../models');
+const { Battle, User, Team } = require('../models');
 const battleService = require('../services/battle');
 const { notifyUser } = require('../sockets/socket');
 const { sendPushToUser } = require('./pushController');
@@ -16,11 +16,13 @@ exports.createBattle = async (req, res) => {
         const isFriend = challenger.friends.some(f => f._id.toString() === opponentId);
         if (!isFriend) return res.status(400).json({ error: 'Solo puedes batallar con amigos' });
 
-        const challengerTeamModel = challenger.teams.id(teamId);
+        const challengerBucket = await Team.findOne({ userId: req.userId });
+        const challengerTeamModel = challengerBucket?.teams.id(teamId);
         if (!challengerTeamModel) return res.status(404).json({ error: 'Equipo no encontrado' });
 
-        if (!opponent.teams || opponent.teams.length === 0) return res.status(400).json({ error: 'El oponente no tiene equipos' });
-        const opponentTeamModel = opponent.teams[0];
+        const opponentBucket = await Team.findOne({ userId: opponentId });
+        if (!opponentBucket || opponentBucket.teams.length === 0) return res.status(400).json({ error: 'El oponente no tiene equipos' });
+        const opponentTeamModel = opponentBucket.teams[0];
 
         const battle = await Battle.create({
             challengerId: req.userId,

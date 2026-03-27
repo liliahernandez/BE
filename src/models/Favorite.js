@@ -1,31 +1,23 @@
 const mongoose = require('mongoose');
 
+const favoritePokemonSchema = new mongoose.Schema({
+    pokemonId: { type: Number, required: true },
+    name: { type: String, required: true },
+    sprite: { type: String },
+    types: { type: [String] },
+    addedAt: { type: Date, default: Date.now }
+});
+
 const favoriteSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        required: true,
+        unique: true
     },
-    pokemonId: {
-        type: Number,
-        required: true
-    },
-    name: {
-        type: String,
-        required: true
-    },
-    sprite: {
-        type: String
-    },
-    types: {
-        type: [String]
-    },
-    userName: {
-        type: String
-    },
-    userNickname: {
-        type: String
-    }
+    userName: { type: String },
+    userNickname: { type: String },
+    favorites: [favoritePokemonSchema]
 }, {
     timestamps: true
 });
