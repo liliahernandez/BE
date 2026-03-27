@@ -1,4 +1,4 @@
-const { Battle, User, Team } = require('../models');
+const { Battle, User } = require('../models');
 const battleService = require('../services/battle');
 const { notifyUser } = require('../sockets/socket');
 const { sendPushToUser } = require('./pushController');
@@ -16,18 +16,17 @@ exports.createBattle = async (req, res) => {
         const isFriend = challenger.friends.some(f => f._id.toString() === opponentId);
         if (!isFriend) return res.status(400).json({ error: 'Solo puedes batallar con amigos' });
 
-        const challengerTeamModel = await Team.findOne({ _id: teamId, userId: req.userId }).populate('pokemon');
+        const challengerTeamModel = challenger.teams.id(teamId);
         if (!challengerTeamModel) return res.status(404).json({ error: 'Equipo no encontrado' });
 
-        const opponentTeams = await Team.find({ userId: opponentId }).populate('pokemon');
-        if (!opponentTeams || opponentTeams.length === 0) return res.status(400).json({ error: 'El oponente no tiene equipos' });
-        const opponentTeamModel = opponentTeams[0]; // Simplified: taking first team
+        if (!opponent.teams || opponent.teams.length === 0) return res.status(400).json({ error: 'El oponente no tiene equipos' });
+        const opponentTeamModel = opponent.teams[0];
 
         const battle = await Battle.create({
             challengerId: req.userId,
             opponentId: opponentId,
-            challengerTeam: challengerTeamModel.pokemon.map(p => p.toObject ? p.toObject() : p),
-            opponentTeam: opponentTeamModel.pokemon.map(p => p.toObject ? p.toObject() : p),
+            challengerTeam: challengerTeamModel.pokemon.map(p => p.toObject()),
+            opponentTeam: opponentTeamModel.pokemon.map(p => p.toObject()),
             status: 'pending'
         });
 

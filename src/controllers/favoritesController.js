@@ -1,10 +1,10 @@
-const { Favorite, Team, TeamPokemon, User } = require('../models');
+const { User } = require('../models');
 const pokeAPIService = require('../services/pokeapi');
 
 exports.getFavorites = async (req, res) => {
     try {
-        const favorites = await Favorite.find({ userId: req.userId });
-        res.json({ favorites });
+        const user = await User.findById(req.userId);
+        res.json({ favorites: user?.favorites || [] });
     } catch (error) {
         console.error('Get favorites error:', error);
         res.status(500).json({ error: error.message || 'Error obteniendo favoritos' });
@@ -24,23 +24,20 @@ exports.addFavorite = async (req, res) => {
 
         const sprite = pokemon.sprites?.other?.['official-artwork']?.front_default || pokemon.sprites?.front_default || '';
         
-        const existing = await Favorite.findOne({ userId: req.userId, pokemonId });
-        if (existing) {
+        const alreadyFavorite = user.favorites.some(f => f.pokemonId === pokemon.id);
+        if (alreadyFavorite) {
             return res.status(400).json({ error: 'Pokemon ya en favoritos' });
         }
 
-        await Favorite.create({
-            userId: req.userId,
-            userName: user.name,
-            userNickname: user.nickname,
+        user.favorites.push({
             pokemonId: pokemon.id,
             name: pokemon.name,
             sprite: sprite,
             types: pokemon.types ? pokemon.types.map(t => t.type.name) : []
         });
 
-        const favorites = await Favorite.find({ userId: req.userId });
-        res.json({ message: 'Añadido a favoritos', favorites });
+        await user.save();
+        res.json({ message: 'Añadido a favoritos', favorites: user.favorites });
     } catch (error) {
         console.error('Add favorite error:', error);
         res.status(500).json({ error: error.message || 'Error añadiendo favorito' });
@@ -50,9 +47,13 @@ exports.addFavorite = async (req, res) => {
 exports.removeFavorite = async (req, res) => {
     try {
         const { pokemonId } = req.params;
-        await Favorite.deleteOne({ userId: req.userId, pokemonId });
-        const favorites = await Favorite.find({ userId: req.userId });
-        res.json({ message: 'Eliminado de favoritos', favorites });
+        const user = await User.findById(req.userId);
+        if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+        user.favorites = user.favorites.filter(f => f.pokemonId !== Number(pokemonId));
+        await user.save();
+        
+        res.json({ message: 'Eliminado de favoritos', favorites: user.favorites });
     } catch (error) {
         console.error('Remove favorite error:', error);
         res.status(500).json({ error: 'Error eliminando favorito' });
@@ -61,8 +62,8 @@ exports.removeFavorite = async (req, res) => {
 
 exports.getTeams = async (req, res) => {
     try {
-        const teams = await Team.find({ userId: req.userId }).populate('pokemon');
-        res.json({ teams });
+        const user = await User.findById(req.userId);
+        res.json({ teams: user?.teams || [] });
     } catch (error) {
         console.error('Get teams error:', error);
         res.status(500).json({ error: 'Error obteniendo equipos' });
@@ -74,32 +75,30 @@ exports.createTeam = async (req, res) => {
         const { name, pokemonIds, pokemon } = req.body;
         if (!name) return res.status(400).json({ error: 'Nombre del equipo requerido' });
         
+        const user = await User.findById(req.userId);
+        if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
         const pList = pokemon || (pokemonIds ? pokemonIds.map(id => ({ pokemonId: id, moves: [] })) : []);
         if (pList.length > 6) return res.status(400).json({ error: 'Tamaño de equipo inválido' });
 
-        const team = await Team.create({ userId: req.userId, name });
+        const pokemonData = await Promise.all(pList.map(p => pokeAPIService.getPokemonDetails(p.pokemonId)));
+        const teamPokemon = pokemonData.map((apiData, index) => {
+            const userMoves = pList[index].moves;
+            return {
+                pokemonId: apiData.id,
+                name: apiData.name,
+                sprite: apiData.sprites?.other?.['official-artwork']?.front_default || apiData.sprites?.front_default,
+                types: apiData.types ? apiData.types.map(t => t.type.name) : [],
+                stats: apiData.stats ? apiData.stats.reduce((acc, stat) => { acc[stat.stat.name] = stat.base_stat; return acc; }, {}) : {},
+                moves: (userMoves && userMoves.length > 0) ? userMoves : (apiData.moves ? apiData.moves.slice(0, 4).map(m => m.move?.name || m.name) : [])
+            };
+        });
 
-        if (pList.length > 0) {
-            const pokemonData = await Promise.all(pList.map(p => pokeAPIService.getPokemonDetails(p.pokemonId)));
-            const teamPokemon = pokemonData.map((apiData, index) => {
-                const userMoves = pList[index].moves;
-                return {
-                    teamId: team._id,
-                    pokemonId: apiData.id,
-                    name: apiData.name,
-                    sprite: apiData.sprites?.other?.['official-artwork']?.front_default || apiData.sprites?.front_default,
-                    types: apiData.types ? apiData.types.map(t => t.type.name) : [],
-                    stats: apiData.stats ? apiData.stats.reduce((acc, stat) => { acc[stat.stat.name] = stat.base_stat; return acc; }, {}) : {},
-                    moves: (userMoves && userMoves.length > 0) ? userMoves : (apiData.moves ? apiData.moves.slice(0, 4).map(m => m.move?.name || m.name) : [])
-                };
-            });
-            const createdPokemon = await TeamPokemon.insertMany(teamPokemon);
-            team.pokemon = createdPokemon.map(cp => cp._id);
-            await team.save();
-        }
+        user.teams.push({ name, pokemon: teamPokemon });
+        await user.save();
 
-        const fullTeam = await Team.findById(team._id).populate('pokemon');
-        res.json({ message: 'Equipo creado', team: fullTeam });
+        const createdTeam = user.teams[user.teams.length - 1];
+        res.json({ message: 'Equipo creado', team: createdTeam });
     } catch (error) {
         console.error('Create team error:', error);
         res.status(500).json({ error: 'Error creando equipo' });
@@ -109,10 +108,12 @@ exports.createTeam = async (req, res) => {
 exports.deleteTeam = async (req, res) => {
     try {
         const { teamId } = req.params;
-        const team = await Team.findOne({ _id: teamId, userId: req.userId });
-        if(!team) return res.status(404).json({ error: 'Equipo no encontrado' });
-        await Team.deleteOne({ _id: teamId });
-        await TeamPokemon.deleteMany({ teamId });
+        const user = await User.findById(req.userId);
+        if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+        user.teams = user.teams.filter(t => t._id.toString() !== teamId);
+        await user.save();
+
         res.json({ message: 'Equipo eliminado' });
     } catch (error) {
         console.error('Delete team error:', error);
@@ -125,41 +126,35 @@ exports.updateTeam = async (req, res) => {
         const { teamId } = req.params;
         const { name, pokemonIds, pokemon } = req.body;
 
-        const team = await Team.findOne({ _id: teamId, userId: req.userId });
+        const user = await User.findById(req.userId);
+        if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+        const team = user.teams.id(teamId);
         if (!team) return res.status(404).json({ error: 'Equipo no encontrado' });
 
-        if (name) { team.name = name; await team.save(); }
+        if (name) team.name = name;
 
         const pList = pokemon || (pokemonIds ? pokemonIds.map(id => ({ pokemonId: id, moves: [] })) : undefined);
 
         if (pList) {
             if (pList.length > 6) return res.status(400).json({ error: 'Tamaño de equipo inválido' });
-            await TeamPokemon.deleteMany({ teamId });
             
-            if (pList.length > 0) {
-                const pokemonData = await Promise.all(pList.map(p => pokeAPIService.getPokemonDetails(p.pokemonId)));
-                const teamPokemon = pokemonData.map((apiData, index) => {
-                    const userMoves = pList[index].moves;
-                    return {
-                        teamId: team._id,
-                        pokemonId: apiData.id,
-                        name: apiData.name,
-                        sprite: apiData.sprites?.other?.['official-artwork']?.front_default || apiData.sprites?.front_default,
-                        types: apiData.types ? apiData.types.map(t => t.type.name) : [],
-                        stats: apiData.stats ? apiData.stats.reduce((acc, stat) => { acc[stat.stat.name] = stat.base_stat; return acc; }, {}) : {},
-                        moves: (userMoves && userMoves.length > 0) ? userMoves : (apiData.moves ? apiData.moves.slice(0, 4).map(m => m.move?.name || m.name) : [])
-                    };
-                });
-                const createdPokemon = await TeamPokemon.insertMany(teamPokemon);
-                team.pokemon = createdPokemon.map(cp => cp._id);
-                await team.save();
-            } else {
-                team.pokemon = [];
-                await team.save();
-            }
+            const pokemonData = await Promise.all(pList.map(p => pokeAPIService.getPokemonDetails(p.pokemonId)));
+            team.pokemon = pokemonData.map((apiData, index) => {
+                const userMoves = pList[index].moves;
+                return {
+                    pokemonId: apiData.id,
+                    name: apiData.name,
+                    sprite: apiData.sprites?.other?.['official-artwork']?.front_default || apiData.sprites?.front_default,
+                    types: apiData.types ? apiData.types.map(t => t.type.name) : [],
+                    stats: apiData.stats ? apiData.stats.reduce((acc, stat) => { acc[stat.stat.name] = stat.base_stat; return acc; }, {}) : {},
+                    moves: (userMoves && userMoves.length > 0) ? userMoves : (apiData.moves ? apiData.moves.slice(0, 4).map(m => m.move?.name || m.name) : [])
+                };
+            });
         }
-        const updatedTeam = await Team.findById(team._id).populate('pokemon');
-        res.json({ message: 'Equipo actualizado', team: updatedTeam });
+        
+        await user.save();
+        res.json({ message: 'Equipo actualizado', team });
     } catch (error) {
         console.error('Update team error:', error);
         res.status(500).json({ error: 'Error actualizando equipo' });
