@@ -95,22 +95,25 @@ exports.addFriend = async (req, res) => {
             await User.updateOne({ _id: user._id }, { $addToSet: { friends: friend._id } });
             await User.updateOne({ _id: friend._id }, { $addToSet: { friends: user._id } });
             
-            await Friendship.create({ 
-                userId: user._id, 
-                userName: user.name, 
-                userNickname: user.nickname, 
-                friendId: friend._id,
-                friendName: friend.name,
-                friendNickname: friend.nickname
-            });
-            await Friendship.create({ 
-                userId: friend._id, 
-                userName: friend.name, 
-                userNickname: friend.nickname, 
-                friendId: user._id,
-                friendName: user.name,
-                friendNickname: user.nickname
-            });
+            // Bucket pattern for requester (user)
+            await Friendship.findOneAndUpdate(
+                { userId: user._id },
+                { 
+                    $set: { userName: user.name, userNickname: user.nickname },
+                    $addToSet: { friends: { friendId: friend._id, friendName: friend.name, friendNickname: friend.nickname } } 
+                },
+                { upsert: true }
+            );
+
+            // Bucket pattern for receiver (friend)
+            await Friendship.findOneAndUpdate(
+                { userId: friend._id },
+                { 
+                    $set: { userName: friend.name, userNickname: friend.nickname },
+                    $addToSet: { friends: { friendId: user._id, friendName: user.name, friendNickname: user.nickname } } 
+                },
+                { upsert: true }
+            );
 
             const payload = {
                 message: '¡Ahora son amigos!',
@@ -142,22 +145,23 @@ exports.addFriend = async (req, res) => {
             await User.updateOne({ _id: user._id }, { $addToSet: { friends: friend._id } });
             await User.updateOne({ _id: friend._id }, { $addToSet: { friends: user._id } });
             
-            await Friendship.create({ 
-                userId: user._id, 
-                userName: user.name, 
-                userNickname: user.nickname, 
-                friendId: friend._id,
-                friendName: friend.name,
-                friendNickname: friend.nickname
-            });
-            await Friendship.create({ 
-                userId: friend._id, 
-                userName: friend.name, 
-                userNickname: friend.nickname, 
-                friendId: user._id,
-                friendName: user.name,
-                friendNickname: user.nickname
-            });
+            // Bucket pattern for both
+            await Friendship.findOneAndUpdate(
+                { userId: user._id },
+                { 
+                    $set: { userName: user.name, userNickname: user.nickname },
+                    $addToSet: { friends: { friendId: friend._id, friendName: friend.name, friendNickname: friend.nickname } } 
+                },
+                { upsert: true }
+            );
+            await Friendship.findOneAndUpdate(
+                { userId: friend._id },
+                { 
+                    $set: { userName: friend.name, userNickname: friend.nickname },
+                    $addToSet: { friends: { friendId: user._id, friendName: user.name, friendNickname: user.nickname } } 
+                },
+                { upsert: true }
+            );
 
             await FriendRequest.deleteMany({
                 $or: [
@@ -192,8 +196,8 @@ exports.addFriend = async (req, res) => {
 
 exports.getFriends = async (req, res) => {
     try {
-        const user = await User.findById(req.userId).populate('friends', 'email name friendCode');
-        res.json({ friends: user?.friends || [] });
+        const doc = await Friendship.findOne({ userId: req.userId });
+        res.json({ friends: doc?.friends || [] });
     } catch (error) {
         console.error('Get friends error:', error);
         res.status(500).json({ error: 'Error obteniendo amigos' });
@@ -212,12 +216,9 @@ exports.removeFriend = async (req, res) => {
         await User.updateOne({ _id: user._id }, { $pull: { friends: friend._id } });
         await User.updateOne({ _id: friend._id }, { $pull: { friends: user._id } });
 
-        await Friendship.deleteMany({
-            $or: [
-                { userId: user._id, friendId: friend._id },
-                { userId: friend._id, friendId: user._id }
-            ]
-        });
+        // Update buckets
+        await Friendship.findOneAndUpdate({ userId: user._id }, { $pull: { friends: { friendId: friend._id } } });
+        await Friendship.findOneAndUpdate({ userId: friend._id }, { $pull: { friends: { friendId: user._id } } });
 
         // Notify the friend in real-time so their list updates instantly without refreshing
         notifyUser(friend._id.toString(), 'friendship_updated', {
