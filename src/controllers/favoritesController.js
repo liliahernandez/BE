@@ -41,6 +41,12 @@ exports.addFavorite = async (req, res) => {
             { upsert: true, new: true }
         );
 
+        // Mirror in User document for easy visibility
+        await User.updateOne(
+            { _id: req.userId },
+            { $addToSet: { favorites: pokemon.name } }
+        );
+
         res.json({ message: 'Añadido a favoritos', favorites: doc.favorites });
     } catch (error) {
         console.error('Add favorite error:', error);
@@ -51,11 +57,23 @@ exports.addFavorite = async (req, res) => {
 exports.removeFavorite = async (req, res) => {
     try {
         const { pokemonId } = req.params;
+        
+        // Find the favorite to get the name (for the User mirror)
+        const currentDoc = await Favorite.findOne({ userId: req.userId });
+        const favToRemove = currentDoc?.favorites.find(f => f.pokemonId === Number(pokemonId));
+
         const doc = await Favorite.findOneAndUpdate(
             { userId: req.userId },
             { $pull: { favorites: { pokemonId: Number(pokemonId) } } },
             { new: true }
         );
+
+        if (favToRemove) {
+            await User.updateOne(
+                { _id: req.userId },
+                { $pull: { favorites: favToRemove.name } }
+            );
+        }
         
         res.json({ message: 'Eliminado de favoritos', favorites: doc?.favorites || [] });
     } catch (error) {
