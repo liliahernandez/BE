@@ -94,8 +94,23 @@ exports.addFriend = async (req, res) => {
             // AUTO-ACEPTAR AMISTAD INSTANTANEAMENTE
             await User.updateOne({ _id: user._id }, { $addToSet: { friends: friend._id } });
             await User.updateOne({ _id: friend._id }, { $addToSet: { friends: user._id } });
-            await Friendship.create({ userId: user._id, friendId: friend._id });
-            await Friendship.create({ userId: friend._id, friendId: user._id });
+            
+            await Friendship.create({ 
+                userId: user._id, 
+                userName: user.name, 
+                userNickname: user.nickname, 
+                friendId: friend._id,
+                friendName: friend.name,
+                friendNickname: friend.nickname
+            });
+            await Friendship.create({ 
+                userId: friend._id, 
+                userName: friend.name, 
+                userNickname: friend.nickname, 
+                friendId: user._id,
+                friendName: user.name,
+                friendNickname: user.nickname
+            });
 
             const payload = {
                 message: '¡Ahora son amigos!',
@@ -126,8 +141,23 @@ exports.addFriend = async (req, res) => {
 
             await User.updateOne({ _id: user._id }, { $addToSet: { friends: friend._id } });
             await User.updateOne({ _id: friend._id }, { $addToSet: { friends: user._id } });
-            await Friendship.create({ userId: user._id, friendId: friend._id });
-            await Friendship.create({ userId: friend._id, friendId: user._id });
+            
+            await Friendship.create({ 
+                userId: user._id, 
+                userName: user.name, 
+                userNickname: user.nickname, 
+                friendId: friend._id,
+                friendName: friend.name,
+                friendNickname: friend.nickname
+            });
+            await Friendship.create({ 
+                userId: friend._id, 
+                userName: friend.name, 
+                userNickname: friend.nickname, 
+                friendId: user._id,
+                friendName: user.name,
+                friendNickname: user.nickname
+            });
 
             await FriendRequest.deleteMany({
                 $or: [
