@@ -197,7 +197,13 @@ exports.addFriend = async (req, res) => {
 exports.getFriends = async (req, res) => {
     try {
         const doc = await Friendship.findOne({ userId: req.userId });
-        res.json({ friends: doc?.friends || [] });
+        const friends = (doc?.friends || []).map(f => ({
+            id: f.friendId,
+            name: f.friendName,
+            nickname: f.friendNickname,
+            addedAt: f.addedAt
+        }));
+        res.json({ friends });
     } catch (error) {
         console.error('Get friends error:', error);
         res.status(500).json({ error: 'Error obteniendo amigos' });
